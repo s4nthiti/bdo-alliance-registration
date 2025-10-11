@@ -3,9 +3,10 @@ import { updateRegistrationQuotas } from '@/lib/db';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { usedQuotas } = body;
     
@@ -16,7 +17,7 @@ export async function PUT(
       );
     }
 
-    const registration = await updateRegistrationQuotas(params.id, usedQuotas);
+    const registration = await updateRegistrationQuotas(id, usedQuotas);
     return NextResponse.json(registration);
   } catch (error) {
     console.error('Error updating registration:', error);
