@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/auth';
+import { useLanguage } from '@/components/LanguageProvider';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginForm() {
@@ -12,6 +13,7 @@ export default function LoginForm() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +27,10 @@ export default function LoginForm() {
         localStorage.setItem('bdo_user', JSON.stringify(user));
         router.push('/dashboard');
       } else {
-        setError('Invalid username or password');
+        setError(t.auth.invalidCredentials);
       }
     } catch (err) {
-      setError('Login failed. Please try again.');
+      setError(t.auth.loginFailed);
     } finally {
       setIsLoading(false);
     }
@@ -42,10 +44,10 @@ export default function LoginForm() {
             <Shield className="h-8 w-8 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-white">
-            BDO Guild Management
+            {t.auth.title}
           </h2>
           <p className="mt-2 text-sm text-gray-300">
-            Sign in to manage your guild boss registrations
+            {t.auth.subtitle}
           </p>
         </div>
         
@@ -53,7 +55,7 @@ export default function LoginForm() {
           <div className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-300">
-                Username
+                {t.auth.username}
               </label>
               <input
                 id="username"
@@ -62,14 +64,14 @@ export default function LoginForm() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your username"
+                className="mt-1 block w-full px-3 py-2 bg-white/20 border border-white/30 rounded-md text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:bg-white/30"
+                placeholder={t.auth.username}
               />
             </div>
             
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-                Password
+                {t.auth.password}
               </label>
               <div className="mt-1 relative">
                 <input
@@ -79,8 +81,8 @@ export default function LoginForm() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full px-3 py-2 pr-10 bg-white/10 border border-white/20 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your password"
+                  className="block w-full px-3 py-2 pr-10 bg-white/20 border border-white/30 rounded-md text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:bg-white/30"
+                  placeholder={t.auth.password}
                 />
                 <button
                   type="button"
@@ -88,9 +90,9 @@ export default function LoginForm() {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400" />
+                    <EyeOff className="h-5 w-5 text-gray-300" />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-400" />
+                    <Eye className="h-5 w-5 text-gray-300" />
                   )}
                 </button>
               </div>
@@ -108,13 +110,13 @@ export default function LoginForm() {
             disabled={isLoading}
             className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            {isLoading ? t.auth.loggingIn : t.auth.login}
           </button>
         </form>
 
         <div className="text-center">
           <p className="text-xs text-gray-400">
-            Default credentials: admin / bdo2024
+            {t.auth.defaultCredentials}
           </p>
         </div>
       </div>

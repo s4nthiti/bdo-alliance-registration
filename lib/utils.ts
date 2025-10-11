@@ -50,3 +50,40 @@ export function generateDiscordMessage(guilds: Array<{name: string, registration
   
   return message;
 }
+
+export function generateCustomMessage(
+  template: string, 
+  guilds: Array<{name: string, registration_code: string, mercenary_quotas: number}>,
+  bossDate: string
+): string {
+  if (guilds.length === 0) {
+    return template
+      .replace(/{guildName}/g, 'No Guild')
+      .replace(/{registrationCode}/g, 'N/A')
+      .replace(/{mercenaryQuotas}/g, '0')
+      .replace(/{bossDate}/g, bossDate);
+  }
+
+  // If template contains guild variables, generate message for each guild
+  if (template.includes('{guildName}') || template.includes('{registrationCode}') || template.includes('{mercenaryQuotas}')) {
+    let message = '';
+    
+    guilds.forEach((guild, index) => {
+      let guildMessage = template
+        .replace(/{guildName}/g, guild.name)
+        .replace(/{registrationCode}/g, guild.registration_code)
+        .replace(/{mercenaryQuotas}/g, guild.mercenary_quotas.toString())
+        .replace(/{bossDate}/g, bossDate);
+      
+      if (index > 0) {
+        message += '\n\n---\n\n';
+      }
+      message += guildMessage;
+    });
+    
+    return message;
+  }
+  
+  // If no guild variables, just replace boss date
+  return template.replace(/{bossDate}/g, bossDate);
+}

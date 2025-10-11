@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Guild, Registration, getRegistrationsByDate, createRegistration, updateRegistrationQuotas } from '@/lib/db';
+import { Guild, Registration } from '@/lib/db';
 import { getNextMonday, formatDate } from '@/lib/utils';
+import { useLanguage } from '@/components/LanguageProvider';
+import GuildSelector from '@/components/GuildSelector';
 import { Users, Plus, Minus, Save, Calendar } from 'lucide-react';
 
 interface QuotaTrackerProps {
@@ -10,10 +12,19 @@ interface QuotaTrackerProps {
 }
 
 export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
+  const { t } = useLanguage();
   const [registrations, setRegistrations] = useState<(Registration & { guild_name: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
   const nextMonday = getNextMonday();
+
+  // Initialize with all guilds selected by default
+  useEffect(() => {
+    if (guilds.length > 0 && selectedGuildIds.length === 0) {
+      setSelectedGuildIds(guilds.map(guild => guild.id));
+    }
+  }, [guilds, selectedGuildIds.length]);
 
   useEffect(() => {
     loadRegistrations();
@@ -22,7 +33,9 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const loadRegistrations = async () => {
     try {
       setLoading(true);
-      const data = await getRegistrationsByDate(nextMonday);
+      const response = await fetch(`/api/registrations?bossDate=${nextMonday}`);
+      if (!response.ok) throw new Error('Failed to load registrations');
+      const data = await response.json();
       setRegistrations(data);
     } catch (error) {
       console.error('Failed to load registrations:', error);
@@ -34,16 +47,22 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const initializeRegistrations = async () => {
     try {
       setLoading(true);
-      // Create registrations for all guilds if they don't exist
-      for (const guild of guilds) {
+      // Create registrations for selected guilds if they don't exist
+      const selectedGuilds = guilds.filter(guild => selectedGuildIds.includes(guild.id));
+      for (const guild of selectedGuilds) {
         const existingRegistration = registrations.find(r => r.guild_id === guild.id);
         if (!existingRegistration) {
-          await createRegistration({
-            guild_id: guild.id,
-            registration_code: guild.registration_code,
-            used_quotas: 0,
-            boss_date: nextMonday
+          const response = await fetch('/api/registrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              guild_id: guild.id,
+              registration_code: guild.registration_code,
+              used_quotas: 0,
+              boss_date: nextMonday
+            })
           });
+          if (!response.ok) throw new Error('Failed to create registration');
         }
       }
       await loadRegistrations();
@@ -57,7 +76,12 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const updateQuotas = async (registrationId: string, newQuotas: number) => {
     try {
       setSaving(prev => ({ ...prev, [registrationId]: true }));
-      await updateRegistrationQuotas(registrationId, newQuotas);
+      const response = await fetch(`/api/registrations/${registrationId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usedQuotas: newQuotas })
+      });
+      if (!response.ok) throw new Error('Failed to update quotas');
       await loadRegistrations();
     } catch (error) {
       console.error('Failed to update quotas:', error);
@@ -79,67 +103,97 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-sm text-gray-600">Loading quota tracker...</p>
+          <p className="mt-2 text-sm text-gray-600">{t.common.loading}</p>
         </div>
       </div>
     );
   }
 
-  if (registrations.length === 0) {
+  // Filter registrations by selected guilds
+  const filteredRegistrations = registrations.filter(reg => selectedGuildIds.includes(reg.guild_id));
+  const selectedGuilds = guilds.filter(guild => selectedGuildIds.includes(guild.id));
+
+  if (selectedGuildIds.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="text-center">
           <Users className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No registrations found</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">{t.tracker.noGuildsSelected}</h3>
           <p className="mt-1 text-sm text-gray-500">
-            Initialize registrations for the next boss fight.
+            {t.tracker.selectGuilds}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (filteredRegistrations.length === 0) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="text-center">
+          <Users className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">{t.tracker.noRegistrations}</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {t.tracker.noRegistrationsSubtitle}
           </p>
           <button
             onClick={initializeRegistrations}
             className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
           >
-            Initialize Registrations
+            {t.tracker.initializeRegistrations}
           </button>
         </div>
       </div>
     );
   }
 
-  const totalUsedQuotas = registrations.reduce((sum, r) => sum + r.used_quotas, 0);
-  const totalAvailableQuotas = guilds.reduce((sum, g) => sum + g.mercenary_quotas, 0);
+  const totalUsedQuotas = filteredRegistrations.reduce((sum, r) => sum + r.used_quotas, 0);
+  const totalAvailableQuotas = selectedGuilds.reduce((sum, g) => sum + g.mercenary_quotas, 0);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-green-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Quota Tracker</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t.tracker.title}</h2>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Calendar className="h-4 w-4" />
-          <span>Boss Date: {formatDate(nextMonday)}</span>
+          <span>{t.tracker.bossDate}: {formatDate(nextMonday)}</span>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {t.tracker.selectGuilds}
+        </label>
+        <GuildSelector
+          guilds={guilds}
+          selectedGuildIds={selectedGuildIds}
+          onSelectionChange={setSelectedGuildIds}
+          placeholder={t.tracker.selectGuilds}
+        />
       </div>
 
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-2xl font-bold text-blue-600">{totalUsedQuotas}</p>
-            <p className="text-sm text-gray-600">Used Quotas</p>
+            <p className="text-sm text-gray-600">{t.tracker.usedQuotas}</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-green-600">{totalAvailableQuotas - totalUsedQuotas}</p>
-            <p className="text-sm text-gray-600">Available Quotas</p>
+            <p className="text-sm text-gray-600">{t.tracker.availableQuotas}</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-600">{totalAvailableQuotas}</p>
-            <p className="text-sm text-gray-600">Total Quotas</p>
+            <p className="text-sm text-gray-600">{t.tracker.totalQuotas}</p>
           </div>
         </div>
       </div>
 
       <div className="space-y-4">
-        {registrations.map((registration) => {
+        {filteredRegistrations.map((registration) => {
           const guild = guilds.find(g => g.id === registration.guild_id);
           if (!guild) return null;
 
@@ -149,7 +203,14 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           return (
             <div key={registration.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-gray-900">{registration.guild_name}</h3>
+                <div className="flex-1">
+                  <h3 className="font-medium text-gray-900">{registration.guild_name}</h3>
+                  <div className="text-sm text-gray-500 mt-1">
+                    <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono break-all">
+                      {registration.registration_code}
+                    </code>
+                  </div>
+                </div>
                 <div className="text-sm text-gray-600">
                   {registration.used_quotas} / {guild.mercenary_quotas} quotas
                 </div>
@@ -189,7 +250,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
               {isAtMax && (
                 <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
                   <p className="text-sm text-yellow-800">
-                    ⚠️ This guild has reached its quota limit
+                    {t.tracker.quotaLimitMessage}
                   </p>
                 </div>
               )}
@@ -200,8 +261,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
 
       <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-md">
         <p className="text-sm text-blue-800">
-          💡 <strong>Instructions:</strong> Use the + and - buttons to track how many mercenaries 
-          have registered for each guild. This helps you monitor quota usage during the boss fight.
+          💡 <strong>{t.tracker.instructions}:</strong> {t.tracker.instructionsMessage}
         </p>
       </div>
     </div>

@@ -1,5 +1,11 @@
 import { sql } from '@vercel/postgres';
 
+// Ensure environment variables are loaded
+if (!process.env.POSTGRES_URL) {
+  console.error('POSTGRES_URL environment variable is not set');
+  console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('POSTGRES')));
+}
+
 export interface Guild {
   id: string;
   name: string;
@@ -22,12 +28,16 @@ export interface Registration {
 // Initialize database tables
 export async function initDatabase() {
   try {
+    console.log('Initializing database...');
+    console.log('POSTGRES_URL available:', !!process.env.POSTGRES_URL);
+    
     // Create guilds table
+    console.log('Creating guilds table...');
     await sql`
       CREATE TABLE IF NOT EXISTS guilds (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
-        registration_code VARCHAR(50) NOT NULL UNIQUE,
+        registration_code TEXT NOT NULL UNIQUE,
         mercenary_quotas INTEGER NOT NULL DEFAULT 0,
         contact_info TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -40,7 +50,7 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS registrations (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
         guild_id UUID REFERENCES guilds(id) ON DELETE CASCADE,
-        registration_code VARCHAR(50) NOT NULL,
+        registration_code TEXT NOT NULL,
         used_quotas INTEGER NOT NULL DEFAULT 0,
         boss_date DATE NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

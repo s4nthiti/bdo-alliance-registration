@@ -43,12 +43,16 @@ export default function GuildList({ guilds, onEdit, onDelete }: GuildListProps) 
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Hash className="h-4 w-4" />
-                  <span className="font-medium">Registration Code:</span>
-                  <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">
-                    {guild.registration_code}
-                  </code>
+                <div className="flex items-start gap-2 text-sm text-gray-600">
+                  <Hash className="h-4 w-4 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="font-medium">Registration Code:</span>
+                    <div className="mt-1">
+                      <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono break-all">
+                        {guild.registration_code}
+                      </code>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="flex items-center gap-2 text-sm text-gray-600">

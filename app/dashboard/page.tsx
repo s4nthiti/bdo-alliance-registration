@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { Guild, getAllGuilds, createGuild, updateGuild, deleteGuild } from '@/lib/db';
-import { initDatabase } from '@/lib/db';
+import { useLanguage } from '@/components/LanguageProvider';
+import { Guild } from '@/lib/db';
 import GuildForm from '@/components/guilds/GuildForm';
 import GuildList from '@/components/guilds/GuildList';
 import MessageGenerator from '@/components/dashboard/MessageGenerator';
 import QuotaTracker from '@/components/dashboard/QuotaTracker';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Plus, Users, MessageSquare, BarChart3, LogOut } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [loading, setLoading] = useState(true);
   const [showGuildForm, setShowGuildForm] = useState(false);
@@ -25,7 +27,11 @@ export default function Dashboard() {
   const initializeApp = async () => {
     try {
       setLoading(true);
-      await initDatabase();
+      // Initialize database via API route
+      const initResponse = await fetch('/api/init-db', { method: 'POST' });
+      if (!initResponse.ok) {
+        throw new Error('Failed to initialize database');
+      }
       await loadGuilds();
     } catch (error) {
       console.error('Failed to initialize app:', error);
@@ -36,7 +42,11 @@ export default function Dashboard() {
 
   const loadGuilds = async () => {
     try {
-      const data = await getAllGuilds();
+      const response = await fetch('/api/guilds');
+      if (!response.ok) {
+        throw new Error('Failed to load guilds');
+      }
+      const data = await response.json();
       setGuilds(data);
     } catch (error) {
       console.error('Failed to load guilds:', error);
@@ -46,9 +56,19 @@ export default function Dashboard() {
   const handleSaveGuild = async (guildData: Omit<Guild, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (editingGuild) {
-        await updateGuild(editingGuild.id, guildData);
+        const response = await fetch(`/api/guilds/${editingGuild.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(guildData)
+        });
+        if (!response.ok) throw new Error('Failed to update guild');
       } else {
-        await createGuild(guildData);
+        const response = await fetch('/api/guilds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(guildData)
+        });
+        if (!response.ok) throw new Error('Failed to create guild');
       }
       await loadGuilds();
       setShowGuildForm(false);
@@ -65,7 +85,8 @@ export default function Dashboard() {
 
   const handleDeleteGuild = async (id: string) => {
     try {
-      await deleteGuild(id);
+      const response = await fetch(`/api/guilds/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete guild');
       await loadGuilds();
     } catch (error) {
       console.error('Failed to delete guild:', error);
@@ -82,7 +103,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <p className="mt-4 text-gray-600">{t.common.loading}</p>
         </div>
       </div>
     );
@@ -99,20 +120,21 @@ export default function Dashboard() {
                 <Users className="h-5 w-5 text-white" />
               </div>
               <h1 className="text-xl font-semibold text-gray-900">
-                BDO Guild Management
+                {t.auth.title}
               </h1>
             </div>
             
             <div className="flex items-center gap-4">
+              <LanguageSwitcher />
               <span className="text-sm text-gray-600">
-                Welcome, {user?.username}
+                {t.auth.welcome}, {user?.username}
               </span>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100"
               >
                 <LogOut className="h-4 w-4" />
-                Logout
+                {t.auth.logout}
               </button>
             </div>
           </div>
@@ -133,7 +155,7 @@ export default function Dashboard() {
             >
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Guild Management
+                {t.nav.guildManagement}
               </div>
             </button>
             <button
@@ -146,7 +168,7 @@ export default function Dashboard() {
             >
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
-                Message Generator
+                {t.nav.messageGenerator}
               </div>
             </button>
             <button
@@ -159,7 +181,7 @@ export default function Dashboard() {
             >
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
-                Quota Tracker
+                {t.nav.quotaTracker}
               </div>
             </button>
           </nav>
@@ -172,15 +194,15 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Guild Management</h2>
-                <p className="text-gray-600">Manage your alliance guilds and their registration codes</p>
+                <h2 className="text-2xl font-bold text-gray-900">{t.guilds.title}</h2>
+                <p className="text-gray-600">{t.guilds.subtitle}</p>
               </div>
               <button
                 onClick={() => setShowGuildForm(true)}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
               >
                 <Plus className="h-4 w-4" />
-                Add Guild
+                {t.guilds.addGuild}
               </button>
             </div>
 
@@ -195,8 +217,8 @@ export default function Dashboard() {
         {activeTab === 'message' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Message Generator</h2>
-              <p className="text-gray-600">Generate Discord messages for guild registration</p>
+              <h2 className="text-2xl font-bold text-gray-900">{t.message.title}</h2>
+              <p className="text-gray-600">{t.message.subtitle}</p>
             </div>
             <MessageGenerator guilds={guilds} />
           </div>
@@ -205,8 +227,8 @@ export default function Dashboard() {
         {activeTab === 'tracker' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Quota Tracker</h2>
-              <p className="text-gray-600">Track mercenary registrations for the boss fight</p>
+              <h2 className="text-2xl font-bold text-gray-900">{t.tracker.title}</h2>
+              <p className="text-gray-600">{t.tracker.subtitle}</p>
             </div>
             <QuotaTracker guilds={guilds} />
           </div>
