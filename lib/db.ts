@@ -1,5 +1,10 @@
 import { sql } from '@vercel/postgres';
 
+// Set the POSTGRES_URL environment variable if it's not set but BDO_STORAGE_POSTGRES_URL is
+if (!process.env.POSTGRES_URL && process.env.BDO_STORAGE_POSTGRES_URL) {
+  process.env.POSTGRES_URL = process.env.BDO_STORAGE_POSTGRES_URL;
+}
+
 // Ensure environment variables are loaded
 if (!process.env.POSTGRES_URL) {
   console.error('POSTGRES_URL environment variable is not set');
