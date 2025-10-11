@@ -46,8 +46,8 @@ export interface Translations {
     generateCode: string;
     noGuilds: string;
     noGuildsSubtitle: string;
-    deleteConfirm: string;
-    deleteConfirmMessage: string;
+      deleteConfirm: string;
+      deleteConfirmMessage: string;
       nameRequired: string;
       codeRequired: string;
       codeTooLong: string;
@@ -153,6 +153,7 @@ export const translations: Record<Language, Translations> = {
       noGuilds: 'No guilds',
       noGuildsSubtitle: 'Get started by adding your first guild.',
       deleteConfirm: 'Are you sure you want to delete this guild? This action cannot be undone.',
+      deleteConfirmMessage: 'Are you sure you want to delete this guild? This action cannot be undone.',
       nameRequired: 'Guild name is required',
       codeRequired: 'Registration code is required',
       codeTooLong: 'Registration code is too long (max 100 characters)',
@@ -250,6 +251,7 @@ export const translations: Record<Language, Translations> = {
       noGuilds: 'ไม่มีกิลด์',
       noGuildsSubtitle: 'เริ่มต้นด้วยการเพิ่มกิลด์แรกของคุณ',
       deleteConfirm: 'คุณแน่ใจหรือไม่ว่าต้องการลบกิลด์นี้? การกระทำนี้ไม่สามารถยกเลิกได้',
+      deleteConfirmMessage: 'คุณแน่ใจหรือไม่ว่าต้องการลบกิลด์นี้? การกระทำนี้ไม่สามารถยกเลิกได้',
       nameRequired: 'ต้องระบุชื่อกิลด์',
       codeRequired: 'ต้องระบุรหัสลงทะเบียน',
       codeTooLong: 'รหัสลงทะเบียนยาวเกินไป (สูงสุด 100 ตัวอักษร)',
