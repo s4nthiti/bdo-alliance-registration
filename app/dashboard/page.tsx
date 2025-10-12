@@ -9,6 +9,7 @@ import GuildList from '@/components/guilds/GuildList';
 import MessageGenerator from '@/components/dashboard/MessageGenerator';
 import QuotaTracker from '@/components/dashboard/QuotaTracker';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ThemeSwitcher';
 import { Plus, Users, MessageSquare, BarChart3, LogOut } from 'lucide-react';
 
 export default function Dashboard() {
@@ -100,38 +101,39 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{t.common.loading}</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-foreground">{t.common.loading}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Users className="h-5 w-5 text-white" />
+              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-semibold text-gray-900">
+              <h1 className="text-xl font-semibold text-foreground">
                 {t.auth.title}
               </h1>
             </div>
             
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               <LanguageSwitcher />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-muted-foreground">
                 {t.auth.welcome}, {user?.username}
               </span>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md hover:bg-gray-100"
+                className="flex items-center gap-2 text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-accent"
               >
                 <LogOut className="h-4 w-4" />
                 {t.auth.logout}
@@ -142,15 +144,15 @@ export default function Dashboard() {
       </header>
 
       {/* Navigation Tabs */}
-      <div className="bg-white border-b">
+      <div className="bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
             <button
               onClick={() => setActiveTab('guilds')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'guilds'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -162,8 +164,8 @@ export default function Dashboard() {
               onClick={() => setActiveTab('message')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'message'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -175,8 +177,8 @@ export default function Dashboard() {
               onClick={() => setActiveTab('tracker')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'tracker'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -194,12 +196,12 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">{t.guilds.title}</h2>
-                <p className="text-gray-600">{t.guilds.subtitle}</p>
+                <h2 className="text-2xl font-bold text-foreground">{t.guilds.title}</h2>
+                <p className="text-muted-foreground">{t.guilds.subtitle}</p>
               </div>
               <button
                 onClick={() => setShowGuildForm(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 font-medium"
               >
                 <Plus className="h-4 w-4" />
                 {t.guilds.addGuild}
@@ -217,8 +219,8 @@ export default function Dashboard() {
         {activeTab === 'message' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{t.message.title}</h2>
-              <p className="text-gray-600">{t.message.subtitle}</p>
+              <h2 className="text-2xl font-bold text-foreground">{t.message.title}</h2>
+              <p className="text-muted-foreground">{t.message.subtitle}</p>
             </div>
             <MessageGenerator guilds={guilds} />
           </div>
@@ -227,8 +229,8 @@ export default function Dashboard() {
         {activeTab === 'tracker' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{t.tracker.title}</h2>
-              <p className="text-gray-600">{t.tracker.subtitle}</p>
+              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
+              <p className="text-muted-foreground">{t.tracker.subtitle}</p>
             </div>
             <QuotaTracker guilds={guilds} />
           </div>

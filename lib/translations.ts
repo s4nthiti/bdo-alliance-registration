@@ -71,6 +71,8 @@ export interface Translations {
       selectedGuilds: string;
       allGuilds: string;
       noGuildsSelected: string;
+      selectAll: string;
+      deselectAll: string;
       messageTemplate: string;
       editTemplate: string;
       saveTemplate: string;
@@ -175,6 +177,8 @@ export const translations: Record<Language, Translations> = {
       selectedGuilds: 'Selected Guilds',
       allGuilds: 'All Guilds',
       noGuildsSelected: 'No guilds selected',
+      selectAll: 'Select All',
+      deselectAll: 'Deselect All',
       messageTemplate: 'Message Template',
       editTemplate: 'Edit Template',
       saveTemplate: 'Save Template',
@@ -273,6 +277,8 @@ export const translations: Record<Language, Translations> = {
       selectedGuilds: 'กิลด์ที่เลือก',
       allGuilds: 'กิลด์ทั้งหมด',
       noGuildsSelected: 'ไม่ได้เลือกกิลด์',
+      selectAll: 'เลือกทั้งหมด',
+      deselectAll: 'ยกเลิกการเลือกทั้งหมด',
       messageTemplate: 'แม่แบบข้อความ',
       editTemplate: 'แก้ไขแม่แบบ',
       saveTemplate: 'บันทึกแม่แบบ',

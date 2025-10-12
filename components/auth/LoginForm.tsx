@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/auth';
 import { useLanguage } from '@/components/LanguageProvider';
+import { ThemeToggle } from '@/components/ThemeSwitcher';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginForm() {
@@ -37,16 +38,21 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      {/* Theme Toggle - Top Right */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-white/10 rounded-full flex items-center justify-center">
-            <Shield className="h-8 w-8 text-white" />
+          <div className="mx-auto h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center">
+            <Shield className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-white">
+          <h2 className="mt-6 text-3xl font-bold text-foreground">
             {t.auth.title}
           </h2>
-          <p className="mt-2 text-sm text-gray-300">
+          <p className="mt-2 text-sm text-muted-foreground">
             {t.auth.subtitle}
           </p>
         </div>
@@ -54,7 +60,7 @@ export default function LoginForm() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="username" className="block text-sm font-medium text-foreground">
                 {t.auth.username}
               </label>
               <input
@@ -64,13 +70,13 @@ export default function LoginForm() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 bg-white/20 border border-white/30 rounded-md text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:bg-white/30"
+                className="mt-1 block w-full px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 placeholder={t.auth.username}
               />
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground">
                 {t.auth.password}
               </label>
               <div className="mt-1 relative">
@@ -81,7 +87,7 @@ export default function LoginForm() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full px-3 py-2 pr-10 bg-white/20 border border-white/30 rounded-md text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:bg-white/30"
+                  className="block w-full px-3 py-2 pr-10 bg-background border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   placeholder={t.auth.password}
                 />
                 <button
@@ -90,9 +96,9 @@ export default function LoginForm() {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-300" />
+                    <EyeOff className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                    <Eye className="h-5 w-5 text-gray-300" />
+                    <Eye className="h-5 w-5 text-muted-foreground" />
                   )}
                 </button>
               </div>
@@ -100,7 +106,7 @@ export default function LoginForm() {
           </div>
 
           {error && (
-            <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-md">
+            <div className="bg-destructive/20 border border-destructive/50 text-destructive-foreground px-4 py-3 rounded-md">
               {error}
             </div>
           )}
@@ -108,14 +114,14 @@ export default function LoginForm() {
           <button
             type="submit"
             disabled={isLoading}
-            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? t.auth.loggingIn : t.auth.login}
           </button>
         </form>
 
         <div className="text-center">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {t.auth.defaultCredentials}
           </p>
         </div>
