@@ -1,15 +1,90 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { Guild, Registration } from '@/lib/db';
 import { getNextMonday, formatDate } from '@/lib/utils';
 import { useLanguage } from '@/components/LanguageProvider';
 import GuildSelector from '@/components/GuildSelector';
-import { Users, Plus, Minus, Save, Calendar } from 'lucide-react';
+import { Users, Plus, Minus, Save, Calendar, Loader2 } from 'lucide-react';
 
 interface QuotaTrackerProps {
   guilds: Guild[];
 }
+
+// Memoized component for individual quota items
+const QuotaItem = memo(({ 
+  registration, 
+  guild, 
+  isSaving, 
+  onAdjustQuotas 
+}: {
+  registration: Registration & { guild_name: string };
+  guild: Guild;
+  isSaving: boolean;
+  onAdjustQuotas: (id: string, delta: number) => void;
+}) => {
+  const isAtMax = registration.used_quotas >= guild.mercenary_quotas;
+  const { t } = useLanguage();
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex-1">
+          <h3 className="font-medium text-gray-900">{registration.guild_name}</h3>
+          <div className="text-sm text-gray-500 mt-1">
+            <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono break-all">
+              {registration.registration_code}
+            </code>
+          </div>
+        </div>
+        <div className="text-sm text-gray-600">
+          {registration.used_quotas} / {guild.mercenary_quotas} quotas
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => onAdjustQuotas(registration.id, -1)}
+          disabled={registration.used_quotas <= 0 || isSaving}
+          className="p-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+
+        <div className="flex-1 text-center">
+          <span className="text-2xl font-bold text-gray-900">
+            {registration.used_quotas}
+          </span>
+        </div>
+
+        <button
+          onClick={() => onAdjustQuotas(registration.id, 1)}
+          disabled={isAtMax || isSaving}
+          className="p-2 bg-green-100 text-green-600 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+
+      {isSaving && (
+        <div className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Saving...</span>
+        </div>
+      )}
+
+      {isAtMax && (
+        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-sm text-yellow-800">
+            {t.tracker.quotaLimitMessage}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+});
+
+QuotaItem.displayName = 'QuotaItem';
 
 export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const { t } = useLanguage();
@@ -26,11 +101,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     }
   }, [guilds, selectedGuildIds.length]);
 
-  useEffect(() => {
-    loadRegistrations();
-  }, []);
-
-  const loadRegistrations = async () => {
+  const loadRegistrations = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/registrations?bossDate=${nextMonday}`);
@@ -42,7 +113,11 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [nextMonday]);
+
+  useEffect(() => {
+    loadRegistrations();
+  }, [loadRegistrations]);
 
   const initializeRegistrations = async () => {
     try {
@@ -73,30 +148,50 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     }
   };
 
-  const updateQuotas = async (registrationId: string, newQuotas: number) => {
+  const updateQuotas = useCallback(async (registrationId: string, newQuotas: number) => {
     try {
       setSaving(prev => ({ ...prev, [registrationId]: true }));
+      
+      // Optimistically update the local state first
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === registrationId 
+            ? { ...reg, used_quotas: newQuotas }
+            : reg
+        )
+      );
+      
       const response = await fetch(`/api/registrations/${registrationId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usedQuotas: newQuotas })
       });
-      if (!response.ok) throw new Error('Failed to update quotas');
-      await loadRegistrations();
+      
+      if (!response.ok) {
+        // If the request failed, revert the optimistic update
+        await loadRegistrations();
+        throw new Error('Failed to update quotas');
+      }
+      
+      // Success - the optimistic update was correct, no need to reload
     } catch (error) {
       console.error('Failed to update quotas:', error);
+      // Error handling is already done above with loadRegistrations()
     } finally {
       setSaving(prev => ({ ...prev, [registrationId]: false }));
     }
-  };
+  }, [loadRegistrations]);
 
-  const adjustQuotas = (registrationId: string, delta: number) => {
+  const adjustQuotas = useCallback((registrationId: string, delta: number) => {
     const registration = registrations.find(r => r.id === registrationId);
     if (registration) {
-      const newQuotas = Math.max(0, registration.used_quotas + delta);
-      updateQuotas(registrationId, newQuotas);
+      const guild = guilds.find(g => g.id === registration.guild_id);
+      if (guild) {
+        const newQuotas = Math.max(0, Math.min(registration.used_quotas + delta, guild.mercenary_quotas));
+        updateQuotas(registrationId, newQuotas);
+      }
     }
-  };
+  }, [registrations, guilds, updateQuotas]);
 
   if (loading) {
     return (
@@ -197,64 +292,14 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           const guild = guilds.find(g => g.id === registration.guild_id);
           if (!guild) return null;
 
-          const isSaving = saving[registration.id];
-          const isAtMax = registration.used_quotas >= guild.mercenary_quotas;
-
           return (
-            <div key={registration.id} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">{registration.guild_name}</h3>
-                  <div className="text-sm text-gray-500 mt-1">
-                    <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono break-all">
-                      {registration.registration_code}
-                    </code>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {registration.used_quotas} / {guild.mercenary_quotas} quotas
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => adjustQuotas(registration.id, -1)}
-                  disabled={registration.used_quotas <= 0 || isSaving}
-                  className="p-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-
-                <div className="flex-1 text-center">
-                  <span className="text-2xl font-bold text-gray-900">
-                    {registration.used_quotas}
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => adjustQuotas(registration.id, 1)}
-                  disabled={isAtMax || isSaving}
-                  className="p-2 bg-green-100 text-green-600 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-
-                {isSaving && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    <span>Saving...</span>
-                  </div>
-                )}
-              </div>
-
-              {isAtMax && (
-                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-sm text-yellow-800">
-                    {t.tracker.quotaLimitMessage}
-                  </p>
-                </div>
-              )}
-            </div>
+            <QuotaItem
+              key={registration.id}
+              registration={registration}
+              guild={guild}
+              isSaving={saving[registration.id]}
+              onAdjustQuotas={adjustQuotas}
+            />
           );
         })}
       </div>
