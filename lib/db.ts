@@ -134,6 +134,13 @@ export async function getRegistrationsByDate(bossDate: string): Promise<(Registr
   return rows;
 }
 
+export async function getRegistrationById(id: string): Promise<Registration | null> {
+  const { rows } = await sql<Registration>`
+    SELECT * FROM registrations WHERE id = ${id}
+  `;
+  return rows[0] || null;
+}
+
 export async function updateRegistrationQuotas(id: string, usedQuotas: number): Promise<Registration> {
   const { rows } = await sql<Registration>`
     UPDATE registrations 

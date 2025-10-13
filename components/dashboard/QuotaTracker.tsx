@@ -5,7 +5,8 @@ import { Guild, Registration } from '@/lib/db';
 import { getNextMonday, formatDate } from '@/lib/utils';
 import { useLanguage } from '@/components/LanguageProvider';
 import GuildSelector from '@/components/GuildSelector';
-import { Users, Plus, Minus, Save, Calendar, Loader2 } from 'lucide-react';
+import { useQuotaUpdates } from '@/lib/useQuotaUpdates';
+import { Users, Plus, Minus, Save, Calendar, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 interface QuotaTrackerProps {
   guilds: Guild[];
@@ -88,39 +89,18 @@ QuotaItem.displayName = 'QuotaItem';
 
 export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const { t } = useLanguage();
-  const [registrations, setRegistrations] = useState<(Registration & { guild_name: string })[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
   const nextMonday = getNextMonday();
 
+  // Use real-time quota updates
+  const { registrations, loading, error, isConnected, reconnect } = useQuotaUpdates(nextMonday);
+
   console.log('QuotaTracker rendered with guilds:', guilds);
-
-  // No auto-selection - let user choose which guilds to select
-
-  const loadRegistrations = useCallback(async () => {
-    try {
-      setLoading(true);
-      console.log('Loading registrations for date:', nextMonday);
-      const response = await fetch(`/api/registrations?bossDate=${nextMonday}`);
-      if (!response.ok) throw new Error('Failed to load registrations');
-      const data = await response.json();
-      console.log('Loaded registrations:', data);
-      setRegistrations(data);
-    } catch (error) {
-      console.error('Failed to load registrations:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [nextMonday]);
-
-  useEffect(() => {
-    loadRegistrations();
-  }, [loadRegistrations]);
+  console.log('Real-time connection status:', isConnected ? 'Connected' : 'Disconnected');
 
   const initializeRegistrations = async () => {
     try {
-      setLoading(true);
       console.log('Initializing registrations for all guilds:', guilds.length);
       // Create registrations for ALL guilds if they don't exist
       for (const guild of guilds) {
@@ -140,27 +120,15 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           if (!response.ok) throw new Error('Failed to create registration');
         }
       }
-      console.log('Registrations created, reloading...');
-      await loadRegistrations();
+      console.log('Registrations created, real-time updates will handle the refresh');
     } catch (error) {
       console.error('Failed to initialize registrations:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const updateQuotas = useCallback(async (registrationId: string, newQuotas: number) => {
     try {
       setSaving(prev => ({ ...prev, [registrationId]: true }));
-      
-      // Optimistically update the local state first
-      setRegistrations(prev => 
-        prev.map(reg => 
-          reg.id === registrationId 
-            ? { ...reg, used_quotas: newQuotas }
-            : reg
-        )
-      );
       
       const response = await fetch(`/api/registrations/${registrationId}`, {
         method: 'PUT',
@@ -169,19 +137,16 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
       });
       
       if (!response.ok) {
-        // If the request failed, revert the optimistic update
-        await loadRegistrations();
         throw new Error('Failed to update quotas');
       }
       
-      // Success - the optimistic update was correct, no need to reload
+      // Real-time updates will handle refreshing the data
     } catch (error) {
       console.error('Failed to update quotas:', error);
-      // Error handling is already done above with loadRegistrations()
     } finally {
       setSaving(prev => ({ ...prev, [registrationId]: false }));
     }
-  }, [loadRegistrations]);
+  }, []);
 
   const adjustQuotas = useCallback((registrationId: string, delta: number) => {
     const registration = registrations.find(r => r.id === registrationId);
@@ -200,6 +165,25 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-2 text-sm text-gray-600">{t.common.loading}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white border border-red-200 rounded-lg p-6">
+        <div className="text-center">
+          <WifiOff className="mx-auto h-12 w-12 text-red-400" />
+          <h3 className="mt-2 text-sm font-medium text-red-900">Connection Error</h3>
+          <p className="mt-1 text-sm text-red-600">{error}</p>
+          <button
+            onClick={reconnect}
+            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium flex items-center gap-2 mx-auto"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reconnect
+          </button>
         </div>
       </div>
     );
@@ -244,6 +228,13 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-green-600" />
           <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
+          <div className="flex items-center gap-1 ml-2">
+            {isConnected ? (
+              <Wifi className="h-4 w-4 text-green-500" title="Real-time updates active" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-red-500" title="Real-time updates disconnected" />
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4" />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateRegistrationQuotas } from '@/lib/db';
+import { updateRegistrationQuotas, getRegistrationById } from '@/lib/db';
+import { broadcastQuotaUpdate } from '../events/route';
 
 export async function PUT(
   request: NextRequest,
@@ -18,6 +19,15 @@ export async function PUT(
     }
 
     const registration = await updateRegistrationQuotas(id, usedQuotas);
+    
+    // Broadcast the update to all connected clients
+    try {
+      broadcastQuotaUpdate(registration.boss_date);
+    } catch (error) {
+      console.error('Error broadcasting quota update:', error);
+      // Don't fail the request if broadcasting fails
+    }
+    
     return NextResponse.json(registration);
   } catch (error) {
     console.error('Error updating registration:', error);
