@@ -230,9 +230,13 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
           <div className="flex items-center gap-1 ml-2">
             {isConnected ? (
-              <Wifi className="h-4 w-4 text-green-500" title="Real-time updates active" />
+              <div title="Real-time updates active">
+                <Wifi className="h-4 w-4 text-green-500" />
+              </div>
             ) : (
-              <WifiOff className="h-4 w-4 text-red-500" title="Real-time updates disconnected" />
+              <div title="Real-time updates disconnected">
+                <WifiOff className="h-4 w-4 text-red-500" />
+              </div>
             )}
           </div>
         </div>

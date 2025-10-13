@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       });
     },
     
-    cancel() {
+    cancel(controller) {
       connections.delete(controller);
     }
   });
