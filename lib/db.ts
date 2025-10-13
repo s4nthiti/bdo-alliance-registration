@@ -58,7 +58,8 @@ export async function initDatabase() {
         registration_code TEXT NOT NULL,
         used_quotas INTEGER NOT NULL DEFAULT 0,
         boss_date DATE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(guild_id, boss_date)
       );
     `;
 
@@ -118,6 +119,10 @@ export async function createRegistration(registration: Omit<Registration, 'id' |
   const { rows } = await sql<Registration>`
     INSERT INTO registrations (guild_id, registration_code, used_quotas, boss_date)
     VALUES (${registration.guild_id}, ${registration.registration_code}, ${registration.used_quotas}, ${registration.boss_date})
+    ON CONFLICT (guild_id, boss_date) 
+    DO UPDATE SET 
+      registration_code = EXCLUDED.registration_code,
+      used_quotas = EXCLUDED.used_quotas
     RETURNING *
   `;
   return rows[0];
@@ -149,4 +154,16 @@ export async function updateRegistrationQuotas(id: string, usedQuotas: number): 
     RETURNING *
   `;
   return rows[0];
+}
+
+// Clean up duplicate registrations (keep the first one for each guild/date combination)
+export async function cleanupDuplicateRegistrations(): Promise<void> {
+  await sql`
+    DELETE FROM registrations 
+    WHERE id NOT IN (
+      SELECT DISTINCT ON (guild_id, boss_date) id 
+      FROM registrations 
+      ORDER BY guild_id, boss_date, created_at ASC
+    )
+  `;
 }

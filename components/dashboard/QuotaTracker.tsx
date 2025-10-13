@@ -102,8 +102,19 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const initializeRegistrations = async () => {
     try {
       console.log('Initializing registrations for all guilds:', guilds.length);
+      
+      // First, clean up any existing duplicates
+      try {
+        await fetch('/api/cleanup-duplicates', { method: 'POST' });
+        console.log('Cleaned up existing duplicates');
+      } catch (error) {
+        console.warn('Failed to cleanup duplicates:', error);
+        // Continue with initialization even if cleanup fails
+      }
+      
       // Create registrations for ALL guilds if they don't exist
-      for (const guild of guilds) {
+      // Use Promise.all to create all registrations in parallel, which is safer with the new ON CONFLICT logic
+      const registrationPromises = guilds.map(async (guild) => {
         const existingRegistration = registrations.find(r => r.guild_id === guild.id);
         if (!existingRegistration) {
           console.log('Creating registration for guild:', guild.name);
@@ -117,10 +128,17 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
               boss_date: nextMonday
             })
           });
-          if (!response.ok) throw new Error('Failed to create registration');
+          if (!response.ok) {
+            console.error(`Failed to create registration for guild ${guild.name}`);
+            return null;
+          }
+          return await response.json();
         }
-      }
-      console.log('Registrations created, real-time updates will handle the refresh');
+        return null;
+      });
+      
+      await Promise.all(registrationPromises);
+      console.log('Registrations initialized, real-time updates will handle the refresh');
     } catch (error) {
       console.error('Failed to initialize registrations:', error);
     }
