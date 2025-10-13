@@ -27,11 +27,30 @@ export function useQuotaUpdates(bossDate: string) {
     const eventSource = new EventSource(`/api/registrations/events?bossDate=${encodeURIComponent(bossDate)}`);
     eventSourceRef.current = eventSource;
 
+    // Fallback: if no initial data is received within 5 seconds, fetch manually
+    const fallbackTimeout = setTimeout(() => {
+      if (registrations.length === 0 && !error) {
+        console.log('SSE fallback: fetching data manually');
+        fetch(`/api/registrations?bossDate=${encodeURIComponent(bossDate)}`)
+          .then(response => response.json())
+          .then(data => {
+            setRegistrations(data);
+            setLoading(false);
+          })
+          .catch(err => {
+            console.error('Fallback fetch failed:', err);
+            setError('Failed to load data');
+            setLoading(false);
+          });
+      }
+    }, 5000);
+
     eventSource.onopen = () => {
       console.log('SSE connection opened');
       setIsConnected(true);
       setError(null);
       reconnectAttempts.current = 0;
+      clearTimeout(fallbackTimeout);
     };
 
     eventSource.onmessage = (event) => {
@@ -43,6 +62,7 @@ export function useQuotaUpdates(bossDate: string) {
             if (message.data) {
               setRegistrations(message.data);
               setLoading(false);
+              clearTimeout(fallbackTimeout);
             }
             break;
           case 'quota_update':
