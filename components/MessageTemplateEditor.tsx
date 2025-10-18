@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/components/LanguageProvider';
-import { X, Save, RotateCcw, HelpCircle, Code } from 'lucide-react';
+import { X, Save, RotateCcw, HelpCircle, Code, Undo2, Redo2 } from 'lucide-react';
 
 interface MessageTemplateEditorProps {
   template: string;
@@ -35,6 +35,9 @@ export default function MessageTemplateEditor({
   const { t } = useLanguage();
   const [currentTemplate, setCurrentTemplate] = useState(template);
   const [showHelp, setShowHelp] = useState(false);
+  const [originalTemplate] = useState(template); // Store original template for undo
+  const [history, setHistory] = useState<string[]>([template]); // Track edit history
+  const [historyIndex, setHistoryIndex] = useState(0); // Current position in history
 
   const handleSave = () => {
     onSave(currentTemplate);
@@ -44,6 +47,50 @@ export default function MessageTemplateEditor({
     setCurrentTemplate(DEFAULT_TEMPLATE);
     onReset();
   };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setCurrentTemplate(history[newIndex]);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setCurrentTemplate(history[newIndex]);
+    }
+  };
+
+  const handleTemplateChange = (newTemplate: string) => {
+    setCurrentTemplate(newTemplate);
+    
+    // Add to history if it's different from current
+    if (newTemplate !== history[historyIndex]) {
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(newTemplate);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+  };
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [historyIndex, history.length]);
 
   const templateVariables = [
     { variable: '{guildName}', description: 'Guild name' },
@@ -105,7 +152,7 @@ export default function MessageTemplateEditor({
             </label>
             <textarea
               value={currentTemplate}
-              onChange={(e) => setCurrentTemplate(e.target.value)}
+              onChange={(e) => handleTemplateChange(e.target.value)}
               className="w-full h-64 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground placeholder-muted-foreground font-mono text-sm"
               placeholder="Enter your message template..."
             />
@@ -136,6 +183,26 @@ export default function MessageTemplateEditor({
             >
               <Save className="h-4 w-4" />
               {t.message.saveTemplate}
+            </button>
+            
+            <button
+              onClick={handleUndo}
+              disabled={historyIndex <= 0}
+              title="Undo (Ctrl+Z)"
+              className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Undo2 className="h-4 w-4" />
+              Undo
+            </button>
+            
+            <button
+              onClick={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+              title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+              className="flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-md hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Redo2 className="h-4 w-4" />
+              Redo
             </button>
             
             <button

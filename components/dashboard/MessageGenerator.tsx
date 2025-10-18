@@ -33,7 +33,10 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
   const [messageTemplate, setMessageTemplate] = useState(DEFAULT_TEMPLATE);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
-  const nextMonday = getNextMonday();
+  const [bossDate, setBossDate] = useState<string>(() => {
+    // Initialize with next Monday
+    return getNextMonday();
+  });
 
   // No auto-selection - let user choose which guilds to select
 
@@ -56,7 +59,7 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
         registration_code: guild.registration_code,
         mercenary_quotas: guild.mercenary_quotas
       }],
-      formatDate(nextMonday)
+      formatDate(bossDate)
     );
     return {
       guild: guild,
@@ -85,7 +88,7 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bdo-guild-message-${nextMonday}.txt`;
+    a.download = `bdo-guild-message-${bossDate}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -132,9 +135,24 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
             <Edit3 className="h-4 w-4" />
             {t.message.editTemplate}
           </button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>{t.message.nextBoss}: {new Date(nextMonday).toLocaleDateString()}</span>
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <label className="text-muted-foreground">{t.message.nextBoss}:</label>
+            <div className="relative">
+              <input
+                type="date"
+                value={bossDate}
+                onChange={(e) => setBossDate(e.target.value)}
+                className="w-32 px-2 py-1 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 opacity-0 absolute inset-0 z-10"
+              />
+              <div className="w-32 px-2 py-1 text-sm bg-background border border-border rounded text-foreground text-center">
+                {bossDate ? new Date(bossDate + 'T00:00:00').toLocaleDateString('th-TH', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                }) : 'DD/MM/YYYY'}
+              </div>
+            </div>
           </div>
         </div>
       </div>

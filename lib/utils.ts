@@ -16,7 +16,7 @@ export function generateRegistrationCode(): string {
 }
 
 export function formatDate(date: string | Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
+  return new Date(date).toLocaleDateString('th-TH', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -24,11 +24,24 @@ export function formatDate(date: string | Date): string {
 }
 
 export function getNextMonday(): string {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
+  // Get current date in Thai timezone
+  const now = new Date();
+  
+  // Get Thai date using Intl.DateTimeFormat
+  const thaiDateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  // Parse the Thai date
+  const thaiDate = new Date(thaiDateStr + 'T00:00:00');
+  
+  const dayOfWeek = thaiDate.getDay();
   const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek; // Sunday is 0, Monday is 1
-  const nextMonday = new Date(today);
-  nextMonday.setDate(today.getDate() + daysUntilMonday);
+  const nextMonday = new Date(thaiDate);
+  nextMonday.setDate(thaiDate.getDate() + daysUntilMonday);
   return nextMonday.toISOString().split('T')[0];
 }
 

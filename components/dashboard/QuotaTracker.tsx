@@ -84,7 +84,7 @@ const QuotaItem = memo(({
           </div>
           <div className="text-sm text-muted-foreground">Current Quota</div>
         </div>
-      </div>
+        </div>
 
       {/* Mercenary Name Input */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-lg p-4 border border-blue-200/50 dark:border-blue-800/50">
@@ -103,7 +103,7 @@ const QuotaItem = memo(({
             className="flex-1 px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             onKeyPress={(e) => e.key === 'Enter' && handleAddMercenary()}
           />
-          <button
+        <button
             onClick={handleAddMercenary}
             disabled={!mercenaryName.trim() || isAddingMercenary || isAtMax}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors shadow-sm"
@@ -111,10 +111,10 @@ const QuotaItem = memo(({
             {isAddingMercenary ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
             )}
             Add
-          </button>
+        </button>
         </div>
       </div>
 
@@ -172,8 +172,8 @@ const QuotaItem = memo(({
               <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
             </div>
             <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-              {t.tracker.quotaLimitMessage}
-            </p>
+            {t.tracker.quotaLimitMessage}
+          </p>
           </div>
         </div>
       )}
@@ -187,25 +187,67 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const { t } = useLanguage();
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  
+  // Helper function to get Thai date
+  const getThaiDate = () => {
+    const now = new Date();
+    // Use Intl.DateTimeFormat to get Thai date
+    const thaiDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now);
+    
+    console.log('Thai date calculation:', {
+      original: now.toISOString(),
+      thaiDate: thaiDate,
+      result: thaiDate
+    });
+    return thaiDate;
+  };
+  
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // Initialize with today's date in Thai timezone
+    return getThaiDate();
+  });
   const [isInitializing, setIsInitializing] = useState(false);
   const [mercenaries, setMercenaries] = useState<(Mercenary & { guild_name: string; registration_code: string })[]>([]);
   const [operationInProgress, setOperationInProgress] = useState<Set<string>>(new Set());
-
-  // Initialize with today's date if no date is selected
-  useEffect(() => {
-    if (!selectedDate) {
-      const today = new Date();
-      const todayString = today.toISOString().split('T')[0];
-      setSelectedDate(todayString);
-    }
-  }, [selectedDate]);
+  const [currentTime, setCurrentTime] = useState<string>('');
 
   // Use real-time quota updates with selected date
   const { registrations, loading, error, isConnected, reconnect } = useQuotaUpdates(selectedDate);
   
   // Use Server-Sent Events for real-time updates
   const { isConnected: sseConnected, error: sseError, reconnect: sseReconnect } = useSSE(selectedDate);
+
+  // Update current time every second
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      
+      const timeString = now.toLocaleString('th-TH', {
+        timeZone: 'Asia/Bangkok',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      setCurrentTime(timeString);
+    };
+
+    // Update immediately
+    updateTime();
+    
+    // Update every second
+    const interval = setInterval(updateTime, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   console.log('QuotaTracker rendered with guilds:', guilds);
   console.log('Real-time connection status:', isConnected ? 'Connected' : 'Disconnected');
@@ -293,11 +335,6 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const initializeRegistrations = async () => {
     if (isInitializing) return; // Prevent multiple clicks
     
-    if (!selectedDate) {
-      alert('Please select a boss date first');
-      return;
-    }
-    
     try {
       setIsInitializing(true);
       console.log('Initializing registrations for all guilds:', guilds.length);
@@ -309,7 +346,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
         if (!cleanupResponse.ok) {
           console.warn('Failed to cleanup duplicates:', await cleanupResponse.text());
         } else {
-          console.log('Cleaned up existing duplicates');
+        console.log('Cleaned up existing duplicates');
         }
       } catch (error) {
         console.warn('Failed to cleanup duplicates:', error);
@@ -522,7 +559,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
-          <div className="text-center">
+        <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-4 text-lg font-medium text-foreground">{t.common.loading}</p>
             <p className="mt-2 text-sm text-muted-foreground">Loading quota data...</p>
@@ -547,19 +584,19 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           </div>
         </div>
         <div className="bg-card border border-red-200 dark:border-red-800 rounded-xl p-8 shadow-sm">
-          <div className="text-center">
+        <div className="text-center">
             <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
               <WifiOff className="h-8 w-8 text-red-600 dark:text-red-400" />
             </div>
             <h3 className="text-lg font-semibold text-red-900 dark:text-red-100 mb-2">Connection Error</h3>
             <p className="text-sm text-red-700 dark:text-red-300 mb-6">{error}</p>
-            <button
-              onClick={reconnect}
+          <button
+            onClick={reconnect}
               className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium flex items-center gap-2 mx-auto transition-colors shadow-sm"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Reconnect
-            </button>
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reconnect
+          </button>
           </div>
         </div>
       </div>
@@ -577,91 +614,77 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   // Always show the guild selector, don't return early
 
   if (filteredRegistrations.length === 0) {
-    return (
-      <div className="bg-card border border-border rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-green-600" />
-            <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
-            <div className="flex items-center gap-1 ml-2">
-              {isConnected ? (
-                <div title="Real-time updates active">
-                  <Wifi className="h-4 w-4 text-green-500" />
-                </div>
-              ) : (
-                <div title="Real-time updates disconnected">
-                  <WifiOff className="h-4 w-4 text-red-500" />
-                </div>
-              )}
-            </div>
+  return (
+    <div className="bg-card border border-border rounded-lg p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-green-600" />
+          <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
+          <div className="flex items-center gap-1 ml-2">
+            {isConnected ? (
+              <div title="Real-time updates active">
+                <Wifi className="h-4 w-4 text-green-500" />
+              </div>
+            ) : (
+              <div title="Real-time updates disconnected">
+                <WifiOff className="h-4 w-4 text-red-500" />
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Date Picker Section */}
-        <div className="mb-6 p-4 bg-muted rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-medium text-foreground">
-              {t.tracker.bossDate}
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={goToToday}
-                className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-              >
-                Today
-              </button>
-              <button
-                onClick={goToNextMonday}
-                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
-              >
-                Next Monday
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigateDate('prev')}
-              className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
-              title="Previous day"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            
-            <div className="flex-1">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <button
-              onClick={() => navigateDate('next')}
-              className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
-              title="Next day"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-          
-          <div className="mt-2 text-sm text-muted-foreground text-center">
-            {selectedDate ? formatDate(selectedDate) : 'Select a date to view registrations'}
-          </div>
+      {/* Date Picker Section */}
+      <div className="mb-6 p-4 bg-muted rounded-lg">
+        <div className="flex items-center justify-between mb-3">
+          <label className="block text-sm font-medium text-foreground">
+            {t.tracker.bossDate}
+          </label>
         </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigateDate('prev')}
+            className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
+            title="Previous day"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          
+          <div className="flex-1">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          <button
+            onClick={() => navigateDate('next')}
+            className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
+            title="Next day"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        
+        <div className="mt-2 text-sm text-muted-foreground text-center">
+          {formatDate(selectedDate)}
+        </div>
+      </div>
 
         <div className="text-center">
           <Users className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">
-            {!selectedDate ? 'Select a Boss Date' : t.tracker.noRegistrations}
+            {t.tracker.noRegistrations}
           </h3>
           <p className="mt-1 text-sm text-gray-500">
-            {!selectedDate ? 'Choose a date to view and manage registrations' : t.tracker.noRegistrationsSubtitle}
+            {t.tracker.noRegistrationsSubtitle}
           </p>
           <button
             onClick={initializeRegistrations}
-            disabled={isInitializing || !selectedDate}
+            disabled={isInitializing}
             className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isInitializing && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -690,6 +713,15 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Current Time Display */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg border border-border/50">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-mono text-foreground">
+                {currentTime}
+              </span>
+            </div>
+            
+            {/* Connection Status */}
             <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg">
               {isConnected && sseConnected ? (
                 <>
@@ -721,20 +753,6 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
               {t.tracker.bossDate}
             </label>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={goToToday}
-              className="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
-            >
-              Today
-            </button>
-            <button
-              onClick={goToNextMonday}
-              className="px-4 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
-            >
-              Next Monday
-            </button>
-          </div>
         </div>
         
         <div className="flex items-center gap-4">
@@ -747,12 +765,21 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           </button>
           
           <div className="flex-1">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-medium"
-            />
+            <div className="relative">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-medium opacity-0 absolute inset-0 z-10"
+              />
+              <div className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground text-center font-medium">
+                {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('th-TH', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                }) : 'DD/MM/YYYY'}
+              </div>
+            </div>
           </div>
           
           <button
@@ -768,25 +795,10 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">
-              {selectedDate ? formatDate(selectedDate) : 'Select a date'}
+              {formatDate(selectedDate)}
             </span>
           </div>
           
-          {/* Quick date presets */}
-          <div className="mt-3 flex gap-2 justify-center">
-            <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-              className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => setSelectedDate(getNextMonday())}
-              className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
-            >
-              Next Monday
-            </button>
-          </div>
         </div>
       </div>
 
@@ -795,8 +807,8 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-purple-600" />
           <label className="text-lg font-semibold text-foreground">
-            {t.tracker.selectGuilds}
-          </label>
+          {t.tracker.selectGuilds}
+        </label>
         </div>
         <GuildSelector
           guilds={guilds}
