@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
     },
     
     cancel() {
-      connections.delete(controller);
+      // Remove all connections that are no longer valid
+      // We can't access the specific controller here, so we'll clean up dead connections
+      // in the broadcastUpdate function instead
     }
   });
 
