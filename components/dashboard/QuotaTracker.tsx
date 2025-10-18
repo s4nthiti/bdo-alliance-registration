@@ -187,10 +187,19 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const { t } = useLanguage();
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(getNextMonday());
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
   const [mercenaries, setMercenaries] = useState<(Mercenary & { guild_name: string; registration_code: string })[]>([]);
   const [operationInProgress, setOperationInProgress] = useState<Set<string>>(new Set());
+
+  // Initialize with today's date if no date is selected
+  useEffect(() => {
+    if (!selectedDate) {
+      const today = new Date();
+      const todayString = today.toISOString().split('T')[0];
+      setSelectedDate(todayString);
+    }
+  }, [selectedDate]);
 
   // Use real-time quota updates with selected date
   const { registrations, loading, error, isConnected, reconnect } = useQuotaUpdates(selectedDate);
@@ -283,6 +292,11 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
 
   const initializeRegistrations = async () => {
     if (isInitializing) return; // Prevent multiple clicks
+    
+    if (!selectedDate) {
+      alert('Please select a boss date first');
+      return;
+    }
     
     try {
       setIsInitializing(true);
@@ -633,19 +647,21 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           </div>
           
           <div className="mt-2 text-sm text-muted-foreground text-center">
-            {formatDate(selectedDate)}
+            {selectedDate ? formatDate(selectedDate) : 'Select a date to view registrations'}
           </div>
         </div>
 
         <div className="text-center">
           <Users className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">{t.tracker.noRegistrations}</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">
+            {!selectedDate ? 'Select a Boss Date' : t.tracker.noRegistrations}
+          </h3>
           <p className="mt-1 text-sm text-gray-500">
-            {t.tracker.noRegistrationsSubtitle}
+            {!selectedDate ? 'Choose a date to view and manage registrations' : t.tracker.noRegistrationsSubtitle}
           </p>
           <button
             onClick={initializeRegistrations}
-            disabled={isInitializing}
+            disabled={isInitializing || !selectedDate}
             className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isInitializing && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -752,8 +768,24 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">
-              {formatDate(selectedDate)}
+              {selectedDate ? formatDate(selectedDate) : 'Select a date'}
             </span>
+          </div>
+          
+          {/* Quick date presets */}
+          <div className="mt-3 flex gap-2 justify-center">
+            <button
+              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setSelectedDate(getNextMonday())}
+              className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+            >
+              Next Monday
+            </button>
           </div>
         </div>
       </div>
