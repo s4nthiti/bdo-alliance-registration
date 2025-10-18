@@ -30,6 +30,13 @@ export interface Registration {
   created_at: string;
 }
 
+export interface Mercenary {
+  id: string;
+  registration_id: string;
+  name: string;
+  registered_at: string;
+}
+
 // Initialize database tables
 export async function initDatabase() {
   try {
@@ -58,8 +65,30 @@ export async function initDatabase() {
         registration_code TEXT NOT NULL,
         used_quotas INTEGER NOT NULL DEFAULT 0,
         boss_date DATE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(guild_id, boss_date)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `;
+    
+    // Add unique constraint if it doesn't exist
+    try {
+      await sql`
+        ALTER TABLE registrations 
+        ADD CONSTRAINT registrations_guild_id_boss_date_unique 
+        UNIQUE (guild_id, boss_date);
+      `;
+      console.log('Unique constraint added successfully');
+    } catch (error) {
+      // Constraint might already exist, which is fine
+      console.log('Unique constraint may already exist:', error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    // Create mercenaries table
+    await sql`
+      CREATE TABLE IF NOT EXISTS mercenaries (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        registration_id UUID REFERENCES registrations(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
     `;
 
@@ -116,16 +145,36 @@ export async function deleteGuild(id: string): Promise<void> {
 
 // Registration operations
 export async function createRegistration(registration: Omit<Registration, 'id' | 'created_at'>): Promise<Registration> {
-  const { rows } = await sql<Registration>`
-    INSERT INTO registrations (guild_id, registration_code, used_quotas, boss_date)
-    VALUES (${registration.guild_id}, ${registration.registration_code}, ${registration.used_quotas}, ${registration.boss_date})
-    ON CONFLICT (guild_id, boss_date) 
-    DO UPDATE SET 
-      registration_code = EXCLUDED.registration_code,
-      used_quotas = EXCLUDED.used_quotas
-    RETURNING *
-  `;
-  return rows[0];
+  try {
+    console.log('Database: Creating registration with data:', registration);
+    
+    // First, verify the guild exists
+    const guildCheck = await sql`SELECT id FROM guilds WHERE id = ${registration.guild_id}`;
+    if (!guildCheck.rows || guildCheck.rows.length === 0) {
+      throw new Error(`Guild with id ${registration.guild_id} does not exist`);
+    }
+    
+    const { rows } = await sql<Registration>`
+      INSERT INTO registrations (guild_id, registration_code, used_quotas, boss_date)
+      VALUES (${registration.guild_id}, ${registration.registration_code}, ${registration.used_quotas}, ${registration.boss_date})
+      ON CONFLICT (guild_id, boss_date) 
+      DO UPDATE SET 
+        registration_code = EXCLUDED.registration_code,
+        used_quotas = EXCLUDED.used_quotas
+      RETURNING *
+    `;
+    
+    if (!rows || rows.length === 0) {
+      throw new Error('No rows returned from INSERT operation');
+    }
+    
+    console.log('Database: Registration created successfully:', rows[0]);
+    return rows[0];
+  } catch (error) {
+    console.error('Database error in createRegistration:', error);
+    console.error('Registration data that failed:', registration);
+    throw error;
+  }
 }
 
 export async function getRegistrationsByDate(bossDate: string): Promise<(Registration & { guild_name: string })[]> {
@@ -156,6 +205,22 @@ export async function updateRegistrationQuotas(id: string, usedQuotas: number): 
   return rows[0];
 }
 
+// Optimistic locking version that checks current quota before updating
+export async function updateRegistrationQuotasOptimistic(id: string, expectedCurrentQuota: number, newQuota: number): Promise<Registration> {
+  const { rows } = await sql<Registration>`
+    UPDATE registrations 
+    SET used_quotas = ${newQuota}
+    WHERE id = ${id} AND used_quotas = ${expectedCurrentQuota}
+    RETURNING *
+  `;
+  
+  if (rows.length === 0) {
+    throw new Error('Concurrent modification detected. Please refresh and try again.');
+  }
+  
+  return rows[0];
+}
+
 // Clean up duplicate registrations (keep the first one for each guild/date combination)
 export async function cleanupDuplicateRegistrations(): Promise<void> {
   await sql`
@@ -166,4 +231,39 @@ export async function cleanupDuplicateRegistrations(): Promise<void> {
       ORDER BY guild_id, boss_date, created_at ASC
     )
   `;
+}
+
+// Mercenary operations
+export async function addMercenary(registrationId: string, name: string): Promise<Mercenary> {
+  const { rows } = await sql<Mercenary>`
+    INSERT INTO mercenaries (registration_id, name)
+    VALUES (${registrationId}, ${name})
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function getMercenariesByRegistration(registrationId: string): Promise<Mercenary[]> {
+  const { rows } = await sql<Mercenary>`
+    SELECT * FROM mercenaries 
+    WHERE registration_id = ${registrationId}
+    ORDER BY registered_at ASC
+  `;
+  return rows;
+}
+
+export async function removeMercenary(mercenaryId: string): Promise<void> {
+  await sql`DELETE FROM mercenaries WHERE id = ${mercenaryId}`;
+}
+
+export async function getMercenariesByDate(bossDate: string): Promise<(Mercenary & { guild_name: string; registration_code: string })[]> {
+  const { rows } = await sql<Mercenary & { guild_name: string; registration_code: string }>`
+    SELECT m.*, g.name as guild_name, r.registration_code
+    FROM mercenaries m
+    JOIN registrations r ON m.registration_id = r.id
+    JOIN guilds g ON r.guild_id = g.id
+    WHERE r.boss_date = ${bossDate}
+    ORDER BY g.name ASC, m.registered_at ASC
+  `;
+  return rows;
 }

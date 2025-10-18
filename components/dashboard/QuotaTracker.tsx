@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { Guild, Registration } from '@/lib/db';
+import { Guild, Registration, Mercenary } from '@/lib/db';
 import { getNextMonday, formatDate } from '@/lib/utils';
 import { useLanguage } from '@/components/LanguageProvider';
 import GuildSelector from '@/components/GuildSelector';
 import { useQuotaUpdates } from '@/lib/useQuotaUpdates';
-import { Users, Plus, Minus, Save, Calendar, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Users, Plus, Minus, Save, Calendar, Loader2, Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight, User, X, Clock, BarChart3 } from 'lucide-react';
 
 interface QuotaTrackerProps {
   guilds: Guild[];
@@ -17,68 +17,163 @@ const QuotaItem = memo(({
   registration, 
   guild, 
   isSaving, 
-  onAdjustQuotas 
+  onAdjustQuotas,
+  mercenaries,
+  onAddMercenary,
+  onRemoveMercenary
 }: {
   registration: Registration & { guild_name: string };
   guild: Guild;
   isSaving: boolean;
   onAdjustQuotas: (id: string, delta: number) => void;
+  mercenaries: (Mercenary & { guild_name: string; registration_code: string })[];
+  onAddMercenary: (registrationId: string, name: string) => void;
+  onRemoveMercenary: (mercenaryId: string) => void;
 }) => {
   const isAtMax = registration.used_quotas >= guild.mercenary_quotas;
   const { t } = useLanguage();
+  const [mercenaryName, setMercenaryName] = useState('');
+  const [isAddingMercenary, setIsAddingMercenary] = useState(false);
+
+  const guildMercenaries = mercenaries.filter(m => m.registration_id === registration.id);
+
+  const handleAddMercenary = async () => {
+    if (!mercenaryName.trim()) return;
+    
+    try {
+      setIsAddingMercenary(true);
+      await onAddMercenary(registration.id, mercenaryName.trim());
+      setMercenaryName('');
+    } catch (error) {
+      console.error('Failed to add mercenary:', error);
+    } finally {
+      setIsAddingMercenary(false);
+    }
+  };
 
   return (
-    <div className="border border-border rounded-lg p-4 bg-card">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex-1">
-          <h3 className="font-medium text-foreground">{registration.guild_name}</h3>
-          <div className="text-sm text-muted-foreground mt-1">
-            <code className="bg-muted px-2 py-1 rounded text-xs font-mono break-all">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">{registration.guild_name}</h3>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            <code className="bg-muted px-3 py-1 rounded-lg text-xs font-mono break-all">
               {registration.registration_code}
             </code>
           </div>
         </div>
-        <div className="text-sm text-muted-foreground">
-          {registration.used_quotas} / {guild.mercenary_quotas} quotas
+        <div className="text-right">
+          <div className="text-2xl font-bold text-foreground">
+            {registration.used_quotas} / {guild.mercenary_quotas}
+          </div>
+          <div className="text-sm text-muted-foreground">quotas</div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => onAdjustQuotas(registration.id, -1)}
-          disabled={registration.used_quotas <= 0 || isSaving}
-          className="p-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-
-        <div className="flex-1 text-center">
-          <span className="text-2xl font-bold text-foreground">
+      {/* Quota Display */}
+      <div className="bg-muted/50 rounded-lg p-4 mb-4">
+        <div className="text-center">
+          <div className="text-4xl font-bold text-foreground mb-1">
             {registration.used_quotas}
-          </span>
+          </div>
+          <div className="text-sm text-muted-foreground">Current Quota</div>
         </div>
-
-        <button
-          onClick={() => onAdjustQuotas(registration.id, 1)}
-          disabled={isAtMax || isSaving}
-          className="p-2 bg-green-100 text-green-600 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
       </div>
+
+      {/* Mercenary Name Input */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-lg p-4 border border-blue-200/50 dark:border-blue-800/50">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <span className="font-semibold text-foreground">Add Mercenary</span>
+        </div>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={mercenaryName}
+            onChange={(e) => setMercenaryName(e.target.value)}
+            placeholder="Enter mercenary name..."
+            className="flex-1 px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onKeyPress={(e) => e.key === 'Enter' && handleAddMercenary()}
+          />
+          <button
+            onClick={handleAddMercenary}
+            disabled={!mercenaryName.trim() || isAddingMercenary || isAtMax}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors shadow-sm"
+          >
+            {isAddingMercenary ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Mercenaries List */}
+      {guildMercenaries.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </div>
+            <span className="font-semibold text-foreground">Registered Mercenaries</span>
+            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">
+              {guildMercenaries.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {guildMercenaries.map((mercenary) => (
+              <div key={mercenary.id} className="flex items-center justify-between p-3 bg-background rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <User className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="font-medium text-foreground">{mercenary.name}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(mercenary.registered_at).toLocaleTimeString()}
+                  </span>
+                  <button
+                    onClick={() => onRemoveMercenary(mercenary.id)}
+                    className="p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                    title="Remove mercenary"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isSaving && (
-        <div className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Saving...</span>
+        <div className="mt-4 flex items-center justify-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+          <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Saving changes...</span>
         </div>
       )}
 
       {isAtMax && (
-        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-sm text-yellow-800">
-            {t.tracker.quotaLimitMessage}
-          </p>
+        <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-yellow-100 dark:bg-yellow-900/30 rounded">
+              <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
+              {t.tracker.quotaLimitMessage}
+            </p>
+          </div>
         </div>
       )}
     </div>
@@ -91,22 +186,91 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const { t } = useLanguage();
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
-  const nextMonday = getNextMonday();
+  const [selectedDate, setSelectedDate] = useState<string>(getNextMonday());
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [mercenaries, setMercenaries] = useState<(Mercenary & { guild_name: string; registration_code: string })[]>([]);
 
-  // Use real-time quota updates
-  const { registrations, loading, error, isConnected, reconnect } = useQuotaUpdates(nextMonday);
+  // Use real-time quota updates with selected date
+  const { registrations, loading, error, isConnected, reconnect } = useQuotaUpdates(selectedDate);
 
   console.log('QuotaTracker rendered with guilds:', guilds);
   console.log('Real-time connection status:', isConnected ? 'Connected' : 'Disconnected');
 
-  const initializeRegistrations = async () => {
+  // Fetch mercenaries for the selected date
+  const fetchMercenaries = useCallback(async () => {
     try {
+      const response = await fetch(`/api/mercenaries?bossDate=${encodeURIComponent(selectedDate)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMercenaries(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch mercenaries:', error);
+    }
+  }, [selectedDate]);
+
+  // Fetch mercenaries when date changes
+  useEffect(() => {
+    fetchMercenaries();
+  }, [fetchMercenaries]);
+
+  // Function to refresh all data when mercenaries change
+  const refreshQuotaData = useCallback(async () => {
+    try {
+      // Refresh registrations data
+      const response = await fetch(`/api/registrations?bossDate=${encodeURIComponent(selectedDate)}`);
+      if (response.ok) {
+        const data = await response.json();
+        // This will trigger the useQuotaUpdates hook to update
+        // We need to force a re-render by updating the date slightly
+        setSelectedDate(prev => prev);
+      }
+      
+      // Refresh mercenaries data
+      await fetchMercenaries();
+    } catch (error) {
+      console.error('Failed to refresh quota data:', error);
+    }
+  }, [selectedDate, fetchMercenaries]);
+
+  // Date navigation helpers
+  const navigateDate = (direction: 'prev' | 'next') => {
+    const currentDate = new Date(selectedDate);
+    const newDate = new Date(currentDate);
+    
+    if (direction === 'prev') {
+      newDate.setDate(currentDate.getDate() - 1);
+    } else {
+      newDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    setSelectedDate(newDate.toISOString().split('T')[0]);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const goToNextMonday = () => {
+    setSelectedDate(getNextMonday());
+  };
+
+  const initializeRegistrations = async () => {
+    if (isInitializing) return; // Prevent multiple clicks
+    
+    try {
+      setIsInitializing(true);
       console.log('Initializing registrations for all guilds:', guilds.length);
+      console.log('Selected date:', selectedDate);
       
       // First, clean up any existing duplicates
       try {
-        await fetch('/api/cleanup-duplicates', { method: 'POST' });
-        console.log('Cleaned up existing duplicates');
+        const cleanupResponse = await fetch('/api/cleanup-duplicates', { method: 'POST' });
+        if (!cleanupResponse.ok) {
+          console.warn('Failed to cleanup duplicates:', await cleanupResponse.text());
+        } else {
+          console.log('Cleaned up existing duplicates');
+        }
       } catch (error) {
         console.warn('Failed to cleanup duplicates:', error);
         // Continue with initialization even if cleanup fails
@@ -125,22 +289,29 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
               guild_id: guild.id,
               registration_code: guild.registration_code,
               used_quotas: 0,
-              boss_date: nextMonday
+              boss_date: selectedDate
             })
           });
           if (!response.ok) {
-            console.error(`Failed to create registration for guild ${guild.name}`);
+            const errorText = await response.text();
+            console.error(`Failed to create registration for guild ${guild.name}:`, errorText);
             return null;
           }
           return await response.json();
+        } else {
+          console.log('Registration already exists for guild:', guild.name);
         }
         return null;
       });
       
-      await Promise.all(registrationPromises);
-      console.log('Registrations initialized, real-time updates will handle the refresh');
+      const results = await Promise.all(registrationPromises);
+      const successful = results.filter(r => r !== null);
+      console.log(`Registrations initialized: ${successful.length} created, real-time updates will handle the refresh`);
     } catch (error) {
       console.error('Failed to initialize registrations:', error);
+      alert('Failed to initialize registrations. Please check the console for details.');
+    } finally {
+      setIsInitializing(false);
     }
   };
 
@@ -148,23 +319,41 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     try {
       setSaving(prev => ({ ...prev, [registrationId]: true }));
       
-      const response = await fetch(`/api/registrations/${registrationId}`, {
+      // Get current registration to get the expected quota
+      const currentRegistration = registrations.find(r => r.id === registrationId);
+      const expectedCurrentQuota = currentRegistration?.used_quotas || 0;
+      
+      const response = await fetch(`/api/registrations/${registrationId}/quota`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usedQuotas: newQuotas })
+        body: JSON.stringify({ 
+          expectedCurrentQuota,
+          newQuota: newQuotas 
+        })
       });
       
       if (!response.ok) {
-        throw new Error('Failed to update quotas');
+        const errorData = await response.json();
+        
+        if (response.status === 409 && errorData.code === 'CONCURRENT_MODIFICATION') {
+          // Handle concurrent modification - refresh data and show user message
+          console.warn('Concurrent modification detected, refreshing data...');
+          await refreshQuotaData();
+          alert('Another user modified this registration. The data has been refreshed.');
+          return;
+        }
+        
+        throw new Error(errorData.message || 'Failed to update quotas');
       }
       
       // Real-time updates will handle refreshing the data
     } catch (error) {
       console.error('Failed to update quotas:', error);
+      alert('Failed to update quota. Please try again.');
     } finally {
       setSaving(prev => ({ ...prev, [registrationId]: false }));
     }
-  }, []);
+  }, [registrations, refreshQuotaData]);
 
   const adjustQuotas = useCallback((registrationId: string, delta: number) => {
     const registration = registrations.find(r => r.id === registrationId);
@@ -177,12 +366,99 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     }
   }, [registrations, guilds, updateQuotas]);
 
+  const addMercenary = useCallback(async (registrationId: string, name: string) => {
+    try {
+      const response = await fetch(`/api/mercenaries/${registrationId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add mercenary');
+      }
+      
+      const newMercenary = await response.json();
+      setMercenaries(prev => [...prev, newMercenary]);
+      
+      // Calculate the new quota count based on actual mercenary count
+      const guildMercenaries = [...mercenaries.filter(m => m.registration_id === registrationId), newMercenary];
+      const newQuotaCount = guildMercenaries.length;
+      
+      // Update quota to match the actual mercenary count with optimistic locking
+      await updateQuotas(registrationId, newQuotaCount);
+      
+      // Refresh all quota data to ensure consistency
+      await refreshQuotaData();
+    } catch (error) {
+      console.error('Failed to add mercenary:', error);
+      // If there's a conflict, refresh data and show message
+      if (error instanceof Error && error.message.includes('Concurrent modification')) {
+        await refreshQuotaData();
+        alert('Another user modified this registration. Please try adding the mercenary again.');
+      } else {
+        throw error;
+      }
+    }
+  }, [mercenaries, updateQuotas, refreshQuotaData]);
+
+  const removeMercenary = useCallback(async (mercenaryId: string) => {
+    try {
+      const response = await fetch(`/api/mercenaries/${mercenaryId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to remove mercenary');
+      }
+      
+      // Find the mercenary to get the registration ID
+      const mercenary = mercenaries.find(m => m.id === mercenaryId);
+      if (mercenary) {
+        setMercenaries(prev => prev.filter(m => m.id !== mercenaryId));
+        
+        // Calculate the new quota count based on remaining mercenaries
+        const remainingMercenaries = mercenaries.filter(m => m.registration_id === mercenary.registration_id && m.id !== mercenaryId);
+        const newQuotaCount = remainingMercenaries.length;
+        
+        // Update quota to match the actual mercenary count with optimistic locking
+        await updateQuotas(mercenary.registration_id, newQuotaCount);
+        
+        // Refresh all quota data to ensure consistency
+        await refreshQuotaData();
+      }
+    } catch (error) {
+      console.error('Failed to remove mercenary:', error);
+      // If there's a conflict, refresh data and show message
+      if (error instanceof Error && error.message.includes('Concurrent modification')) {
+        await refreshQuotaData();
+        alert('Another user modified this registration. Please try removing the mercenary again.');
+      } else {
+        throw error;
+      }
+    }
+  }, [mercenaries, updateQuotas, refreshQuotaData]);
+
   if (loading) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-sm text-gray-600">{t.common.loading}</p>
+      <div className="space-y-6">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
+              <p className="text-sm text-muted-foreground">Track mercenary registrations in real-time</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-lg font-medium text-foreground">{t.common.loading}</p>
+            <p className="mt-2 text-sm text-muted-foreground">Loading quota data...</p>
+          </div>
         </div>
       </div>
     );
@@ -190,18 +466,33 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
 
   if (error) {
     return (
-      <div className="bg-white border border-red-200 rounded-lg p-6">
-        <div className="text-center">
-          <WifiOff className="mx-auto h-12 w-12 text-red-400" />
-          <h3 className="mt-2 text-sm font-medium text-red-900">Connection Error</h3>
-          <p className="mt-1 text-sm text-red-600">{error}</p>
-          <button
-            onClick={reconnect}
-            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium flex items-center gap-2 mx-auto"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Reconnect
-          </button>
+      <div className="space-y-6">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
+              <p className="text-sm text-muted-foreground">Track mercenary registrations in real-time</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-card border border-red-200 dark:border-red-800 rounded-xl p-8 shadow-sm">
+          <div className="text-center">
+            <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <WifiOff className="h-8 w-8 text-red-600 dark:text-red-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-red-900 dark:text-red-100 mb-2">Connection Error</h3>
+            <p className="text-sm text-red-700 dark:text-red-300 mb-6">{error}</p>
+            <button
+              onClick={reconnect}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium flex items-center gap-2 mx-auto transition-colors shadow-sm"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Reconnect
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -219,7 +510,79 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
 
   if (filteredRegistrations.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-green-600" />
+            <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
+            <div className="flex items-center gap-1 ml-2">
+              {isConnected ? (
+                <div title="Real-time updates active">
+                  <Wifi className="h-4 w-4 text-green-500" />
+                </div>
+              ) : (
+                <div title="Real-time updates disconnected">
+                  <WifiOff className="h-4 w-4 text-red-500" />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Date Picker Section */}
+        <div className="mb-6 p-4 bg-muted rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-medium text-foreground">
+              {t.tracker.bossDate}
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={goToToday}
+                className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+              >
+                Today
+              </button>
+              <button
+                onClick={goToNextMonday}
+                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+              >
+                Next Monday
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigateDate('prev')}
+              className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
+              title="Previous day"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            
+            <div className="flex-1">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <button
+              onClick={() => navigateDate('next')}
+              className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
+              title="Next day"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          
+          <div className="mt-2 text-sm text-muted-foreground text-center">
+            {formatDate(selectedDate)}
+          </div>
+        </div>
+
         <div className="text-center">
           <Users className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">{t.tracker.noRegistrations}</h3>
@@ -228,9 +591,11 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           </p>
           <button
             onClick={initializeRegistrations}
-            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+            disabled={isInitializing}
+            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {t.tracker.initializeRegistrations}
+            {isInitializing && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isInitializing ? 'Initializing...' : t.tracker.initializeRegistrations}
           </button>
         </div>
       </div>
@@ -241,39 +606,107 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const totalAvailableQuotas = selectedGuilds.reduce((sum, g) => sum + g.mercenary_quotas, 0);
 
   return (
-    <div className="bg-card border border-border rounded-lg p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-green-600" />
-          <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
-          <div className="flex items-center gap-1 ml-2">
-            {isConnected ? (
-              <div title="Real-time updates active">
-                <Wifi className="h-4 w-4 text-green-500" />
-              </div>
-            ) : (
-              <div title="Real-time updates disconnected">
-                <WifiOff className="h-4 w-4 text-red-500" />
-              </div>
-            )}
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
+              <p className="text-sm text-muted-foreground">Track mercenary registrations in real-time</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>{t.tracker.bossDate}: {formatDate(nextMonday)}</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg">
+              {isConnected ? (
+                <>
+                  <Wifi className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">Live</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-4 w-4 text-red-500" />
+                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">Offline</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div 
-        className="mb-6"
-        onClick={(e) => {
-          console.log('QuotaTracker container clicked');
-        }}
-        style={{ pointerEvents: 'auto' }}
-      >
-        <label className="block text-sm font-medium text-foreground mb-2">
-          {t.tracker.selectGuilds}
-        </label>
+      {/* Date Picker Section */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-blue-600" />
+            <label className="text-lg font-semibold text-foreground">
+              {t.tracker.bossDate}
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goToToday}
+              className="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+            >
+              Today
+            </button>
+            <button
+              onClick={goToNextMonday}
+              className="px-4 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
+            >
+              Next Monday
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigateDate('prev')}
+            className="p-3 bg-background border border-border rounded-lg hover:bg-muted transition-colors shadow-sm"
+            title="Previous day"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          
+          <div className="flex-1">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-medium"
+            />
+          </div>
+          
+          <button
+            onClick={() => navigateDate('next')}
+            className="p-3 bg-background border border-border rounded-lg hover:bg-muted transition-colors shadow-sm"
+            title="Next day"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+        
+        <div className="mt-4 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">
+              {formatDate(selectedDate)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Guild Selector Section */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Users className="h-5 w-5 text-purple-600" />
+          <label className="text-lg font-semibold text-foreground">
+            {t.tracker.selectGuilds}
+          </label>
+        </div>
         <GuildSelector
           guilds={guilds}
           selectedGuildIds={selectedGuildIds}
@@ -283,6 +716,13 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           }}
           placeholder={t.tracker.selectGuilds}
         />
+        {selectedGuildIds.length > 0 && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              <strong>{selectedGuildIds.length}</strong> guild{selectedGuildIds.length !== 1 ? 's' : ''} selected for tracking
+            </p>
+          </div>
+        )}
       </div>
 
       {selectedGuildIds.length === 0 ? (
@@ -295,19 +735,24 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
         </div>
       ) : (
         <>
-          <div className="mb-6 p-4 bg-muted rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-2xl font-bold text-blue-600">{totalUsedQuotas}</p>
-                <p className="text-sm text-muted-foreground">{t.tracker.usedQuotas}</p>
+          {/* Quota Summary */}
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="h-5 w-5 text-slate-600" />
+              <h3 className="text-lg font-semibold text-foreground">Quota Summary</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">{totalUsedQuotas}</div>
+                <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">{t.tracker.usedQuotas}</div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-green-600">{totalAvailableQuotas - totalUsedQuotas}</p>
-                <p className="text-sm text-muted-foreground">{t.tracker.availableQuotas}</p>
+              <div className="text-center p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">{totalAvailableQuotas - totalUsedQuotas}</div>
+                <div className="text-sm text-green-700 dark:text-green-300 font-medium">{t.tracker.availableQuotas}</div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-muted-foreground">{totalAvailableQuotas}</p>
-                <p className="text-sm text-muted-foreground">{t.tracker.totalQuotas}</p>
+              <div className="text-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="text-3xl font-bold text-slate-600 dark:text-slate-400 mb-1">{totalAvailableQuotas}</div>
+                <div className="text-sm text-slate-700 dark:text-slate-300 font-medium">{t.tracker.totalQuotas}</div>
               </div>
             </div>
           </div>
@@ -324,15 +769,28 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
               guild={guild}
               isSaving={saving[registration.id]}
               onAdjustQuotas={adjustQuotas}
+              mercenaries={mercenaries}
+              onAddMercenary={addMercenary}
+              onRemoveMercenary={removeMercenary}
             />
           );
         })}
       </div>
 
-          <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-sm text-blue-800">
-              💡 <strong>{t.tracker.instructions}:</strong> {t.tracker.instructionsMessage}
-            </p>
+          <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg mt-0.5">
+                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">
+                  {t.tracker.instructions}
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  {t.tracker.instructionsMessage}
+                </p>
+              </div>
+            </div>
           </div>
         </>
       )}

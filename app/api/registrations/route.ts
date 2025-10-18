@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRegistrationsByDate, createRegistration } from '@/lib/db';
+import { getRegistrationsByDate, createRegistration, getAllGuilds } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,14 +25,40 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let body;
   try {
-    const body = await request.json();
+    body = await request.json();
+    console.log('Creating registration with data:', body);
+    
+    // Validate required fields
+    if (!body.guild_id || !body.registration_code || body.used_quotas === undefined || !body.boss_date) {
+      console.error('Missing required fields:', body);
+      return NextResponse.json(
+        { error: 'Missing required fields: guild_id, registration_code, used_quotas, boss_date' },
+        { status: 400 }
+      );
+    }
+    
+    // Debug: Check available guilds
+    const availableGuilds = await getAllGuilds();
+    console.log('Available guilds:', availableGuilds.map(g => ({ id: g.id, name: g.name })));
+    console.log('Requested guild_id:', body.guild_id);
+    
     const registration = await createRegistration(body);
+    console.log('Registration created successfully:', registration);
     return NextResponse.json(registration, { status: 201 });
   } catch (error) {
     console.error('Error creating registration:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      body: body || 'Could not parse body'
+    });
     return NextResponse.json(
-      { error: 'Failed to create registration' },
+      { 
+        error: 'Failed to create registration',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
