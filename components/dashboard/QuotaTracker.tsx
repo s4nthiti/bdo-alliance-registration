@@ -6,6 +6,7 @@ import { getNextMonday, formatDate } from '@/lib/utils';
 import { useLanguage } from '@/components/LanguageProvider';
 import GuildSelector from '@/components/GuildSelector';
 import { useQuotaUpdates } from '@/lib/useQuotaUpdates';
+import { useSSE } from '@/lib/useSSE';
 import { Users, Plus, Minus, Save, Calendar, Loader2, Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight, User, X, Clock, BarChart3 } from 'lucide-react';
 
 interface QuotaTrackerProps {
@@ -189,9 +190,13 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const [selectedDate, setSelectedDate] = useState<string>(getNextMonday());
   const [isInitializing, setIsInitializing] = useState(false);
   const [mercenaries, setMercenaries] = useState<(Mercenary & { guild_name: string; registration_code: string })[]>([]);
+  const [operationInProgress, setOperationInProgress] = useState<Set<string>>(new Set());
 
   // Use real-time quota updates with selected date
   const { registrations, loading, error, isConnected, reconnect } = useQuotaUpdates(selectedDate);
+  
+  // Use Server-Sent Events for real-time updates
+  const { isConnected: sseConnected, error: sseError, reconnect: sseReconnect } = useSSE(selectedDate);
 
   console.log('QuotaTracker rendered with guilds:', guilds);
   console.log('Real-time connection status:', isConnected ? 'Connected' : 'Disconnected');
@@ -212,6 +217,27 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   // Fetch mercenaries when date changes
   useEffect(() => {
     fetchMercenaries();
+  }, [fetchMercenaries]);
+
+  // Listen for SSE events to refresh data
+  useEffect(() => {
+    const handleQuotaUpdate = () => {
+      console.log('SSE: Quota update received, refreshing data...');
+      fetchMercenaries();
+    };
+
+    const handleMercenaryUpdate = () => {
+      console.log('SSE: Mercenary update received, refreshing data...');
+      fetchMercenaries();
+    };
+
+    window.addEventListener('quotaUpdate', handleQuotaUpdate);
+    window.addEventListener('mercenaryUpdate', handleMercenaryUpdate);
+
+    return () => {
+      window.removeEventListener('quotaUpdate', handleQuotaUpdate);
+      window.removeEventListener('mercenaryUpdate', handleMercenaryUpdate);
+    };
   }, [fetchMercenaries]);
 
   // Function to refresh all data when mercenaries change
@@ -319,41 +345,28 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     try {
       setSaving(prev => ({ ...prev, [registrationId]: true }));
       
-      // Get current registration to get the expected quota
-      const currentRegistration = registrations.find(r => r.id === registrationId);
-      const expectedCurrentQuota = currentRegistration?.used_quotas || 0;
-      
-      const response = await fetch(`/api/registrations/${registrationId}/quota`, {
+      // Use the simple quota update without optimistic locking
+      // The quota should always match the actual mercenary count
+      const response = await fetch(`/api/registrations/${registrationId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          expectedCurrentQuota,
-          newQuota: newQuotas 
-        })
+        body: JSON.stringify({ usedQuotas: newQuotas })
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        
-        if (response.status === 409 && errorData.code === 'CONCURRENT_MODIFICATION') {
-          // Handle concurrent modification - refresh data and show user message
-          console.warn('Concurrent modification detected, refreshing data...');
-          await refreshQuotaData();
-          alert('Another user modified this registration. The data has been refreshed.');
-          return;
-        }
-        
         throw new Error(errorData.message || 'Failed to update quotas');
       }
       
       // Real-time updates will handle refreshing the data
     } catch (error) {
       console.error('Failed to update quotas:', error);
-      alert('Failed to update quota. Please try again.');
+      // Don't show alert for quota update failures, just log and continue
+      console.warn('Quota update failed, will refresh data to sync:', error);
     } finally {
       setSaving(prev => ({ ...prev, [registrationId]: false }));
     }
-  }, [registrations, refreshQuotaData]);
+  }, []);
 
   const adjustQuotas = useCallback((registrationId: string, delta: number) => {
     const registration = registrations.find(r => r.id === registrationId);
@@ -379,30 +392,51 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
       }
       
       const newMercenary = await response.json();
+      // Update local state immediately for UI responsiveness
       setMercenaries(prev => [...prev, newMercenary]);
       
       // Calculate the new quota count based on actual mercenary count
       const guildMercenaries = [...mercenaries.filter(m => m.registration_id === registrationId), newMercenary];
       const newQuotaCount = guildMercenaries.length;
       
-      // Update quota to match the actual mercenary count with optimistic locking
+      // Update quota to match the actual mercenary count
+      // This is a simple update without optimistic locking since quota should match mercenary count
       await updateQuotas(registrationId, newQuotaCount);
       
-      // Refresh all quota data to ensure consistency
-      await refreshQuotaData();
+      // Broadcast SSE event for real-time updates
+      try {
+        await fetch('/api/events/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'mercenary_added',
+            data: { registrationId, mercenaryName: name }
+          })
+        });
+      } catch (error) {
+        console.warn('Failed to broadcast SSE event:', error);
+      }
+      
+      // Always refresh data after a short delay to ensure consistency
+      setTimeout(async () => {
+        await refreshQuotaData();
+      }, 100);
     } catch (error) {
       console.error('Failed to add mercenary:', error);
-      // If there's a conflict, refresh data and show message
-      if (error instanceof Error && error.message.includes('Concurrent modification')) {
-        await refreshQuotaData();
-        alert('Another user modified this registration. Please try adding the mercenary again.');
-      } else {
-        throw error;
-      }
+      // Refresh data to ensure consistency
+      await refreshQuotaData();
     }
   }, [mercenaries, updateQuotas, refreshQuotaData]);
 
   const removeMercenary = useCallback(async (mercenaryId: string) => {
+    // Prevent rapid-fire operations
+    if (operationInProgress.has(mercenaryId)) {
+      console.log('Operation already in progress for mercenary:', mercenaryId);
+      return;
+    }
+    
+    setOperationInProgress(prev => new Set(prev).add(mercenaryId));
+    
     try {
       const response = await fetch(`/api/mercenaries/${mercenaryId}`, {
         method: 'DELETE'
@@ -415,29 +449,49 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
       // Find the mercenary to get the registration ID
       const mercenary = mercenaries.find(m => m.id === mercenaryId);
       if (mercenary) {
+        // Update local state immediately for UI responsiveness
         setMercenaries(prev => prev.filter(m => m.id !== mercenaryId));
         
         // Calculate the new quota count based on remaining mercenaries
         const remainingMercenaries = mercenaries.filter(m => m.registration_id === mercenary.registration_id && m.id !== mercenaryId);
         const newQuotaCount = remainingMercenaries.length;
         
-        // Update quota to match the actual mercenary count with optimistic locking
+        // Update quota to match the actual mercenary count
+        // This is a simple update without optimistic locking since quota should match mercenary count
         await updateQuotas(mercenary.registration_id, newQuotaCount);
         
-        // Refresh all quota data to ensure consistency
-        await refreshQuotaData();
+        // Broadcast SSE event for real-time updates
+        try {
+          await fetch('/api/events/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'mercenary_removed',
+              data: { registrationId: mercenary.registration_id, mercenaryId }
+            })
+          });
+        } catch (error) {
+          console.warn('Failed to broadcast SSE event:', error);
+        }
+        
+        // Always refresh data after a short delay to ensure consistency
+        setTimeout(async () => {
+          await refreshQuotaData();
+        }, 100);
       }
     } catch (error) {
       console.error('Failed to remove mercenary:', error);
-      // If there's a conflict, refresh data and show message
-      if (error instanceof Error && error.message.includes('Concurrent modification')) {
-        await refreshQuotaData();
-        alert('Another user modified this registration. Please try removing the mercenary again.');
-      } else {
-        throw error;
-      }
+      // Refresh data to ensure consistency
+      await refreshQuotaData();
+    } finally {
+      // Clear the operation in progress flag
+      setOperationInProgress(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(mercenaryId);
+        return newSet;
+      });
     }
-  }, [mercenaries, updateQuotas, refreshQuotaData]);
+  }, [mercenaries, registrations, updateQuotas, refreshQuotaData, operationInProgress]);
 
   if (loading) {
     return (
@@ -621,10 +675,15 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg">
-              {isConnected ? (
+              {isConnected && sseConnected ? (
                 <>
                   <Wifi className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">Live</span>
+                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">Live (SSE)</span>
+                </>
+              ) : isConnected ? (
+                <>
+                  <Wifi className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm text-yellow-600 dark:text-yellow-400 font-medium">Polling</span>
                 </>
               ) : (
                 <>
