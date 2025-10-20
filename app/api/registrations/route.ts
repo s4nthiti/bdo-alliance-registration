@@ -31,10 +31,11 @@ export async function POST(request: NextRequest) {
     console.log('Creating registration with data:', body);
     
     // Validate required fields
-    if (!body.guild_id || !body.registration_code || body.used_quotas === undefined || !body.boss_date) {
+    // Note: registration_code can be empty as it will be fetched from the guild table
+    if (!body.guild_id || body.used_quotas === undefined || !body.boss_date) {
       console.error('Missing required fields:', body);
       return NextResponse.json(
-        { error: 'Missing required fields: guild_id, registration_code, used_quotas, boss_date' },
+        { error: 'Missing required fields: guild_id, used_quotas, boss_date' },
         { status: 400 }
       );
     }

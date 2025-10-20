@@ -136,6 +136,17 @@ export async function updateGuild(id: string, updates: Partial<Omit<Guild, 'id' 
     WHERE id = ${id}
     RETURNING *
   `;
+  
+  // If registration_code was updated, also update all existing registrations for this guild
+  if (updates.registration_code) {
+    console.log('Registration code updated, updating existing registrations for guild:', id);
+    await sql`
+      UPDATE registrations 
+      SET registration_code = ${updates.registration_code}
+      WHERE guild_id = ${id}
+    `;
+  }
+  
   return rows[0];
 }
 
@@ -148,15 +159,19 @@ export async function createRegistration(registration: Omit<Registration, 'id' |
   try {
     console.log('Database: Creating registration with data:', registration);
     
-    // First, verify the guild exists
-    const guildCheck = await sql`SELECT id FROM guilds WHERE id = ${registration.guild_id}`;
+    // First, verify the guild exists and get the latest registration_code
+    const guildCheck = await sql`SELECT id, registration_code FROM guilds WHERE id = ${registration.guild_id}`;
     if (!guildCheck.rows || guildCheck.rows.length === 0) {
       throw new Error(`Guild with id ${registration.guild_id} does not exist`);
     }
     
+    // Use the latest registration_code from the guild table, not the one passed in
+    const latestRegistrationCode = guildCheck.rows[0].registration_code;
+    console.log('Database: Using latest registration_code from guild:', latestRegistrationCode);
+    
     const { rows } = await sql<Registration>`
       INSERT INTO registrations (guild_id, registration_code, used_quotas, boss_date)
-      VALUES (${registration.guild_id}, ${registration.registration_code}, ${registration.used_quotas}, ${registration.boss_date})
+      VALUES (${registration.guild_id}, ${latestRegistrationCode}, ${registration.used_quotas}, ${registration.boss_date})
       ON CONFLICT (guild_id, boss_date) 
       DO UPDATE SET 
         registration_code = EXCLUDED.registration_code,

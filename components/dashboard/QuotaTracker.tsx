@@ -364,7 +364,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               guild_id: guild.id,
-              registration_code: guild.registration_code,
+              registration_code: '', // Will be fetched from guild table in the database
               used_quotas: 0,
               boss_date: selectedDate
             })
