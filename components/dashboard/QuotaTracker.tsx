@@ -419,20 +419,86 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
 
   if (filteredRegistrations.length === 0) {
     return (
-      <div className="text-center py-8">
-        <h3 className="text-lg font-medium text-foreground mb-2">
-          {t.tracker.noRegistrations}
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          {t.tracker.noRegistrationsSubtitle}
-        </p>
-        <button
-          onClick={initializeRegistrations}
-          disabled={isInitializing}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isInitializing ? 'Initializing...' : t.tracker.initializeRegistrations}
-        </button>
+      <div className="space-y-6">
+        {/* Header Section */}
+        <div className="border-b border-border pb-4 mb-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-foreground">{t.tracker.title}</h2>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>{currentTime}</span>
+              {isConnected ? (
+                <span className="text-green-600">●</span>
+              ) : (
+                <span className="text-red-600">●</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Date Picker Section */}
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigateDate('prev')}
+            className="p-2 hover:bg-muted rounded"
+            title="Previous day"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-2 border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          
+          <button
+            onClick={() => navigateDate('next')}
+            className="p-2 hover:bg-muted rounded"
+            title="Next day"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          
+          <span className="text-sm text-muted-foreground ml-2">
+            {formatDate(selectedDate)}
+          </span>
+        </div>
+
+        {/* Guild Selector Section */}
+        <div className="mb-6">
+          <GuildSelector
+            guilds={guilds}
+            selectedGuildIds={selectedGuildIds}
+            onSelectionChange={(newSelection) => {
+              console.log('QuotaTracker received selection change:', newSelection);
+              setSelectedGuildIds(newSelection);
+            }}
+            placeholder={t.tracker.selectGuilds}
+          />
+          {selectedGuildIds.length > 0 && (
+            <p className="text-sm text-muted-foreground mt-2">
+              {selectedGuildIds.length} guild{selectedGuildIds.length !== 1 ? 's' : ''} selected
+            </p>
+          )}
+        </div>
+
+        {/* No Registrations Message */}
+        <div className="text-center py-8">
+          <h3 className="text-lg font-medium text-foreground mb-2">
+            {t.tracker.noRegistrations}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            {t.tracker.noRegistrationsSubtitle}
+          </p>
+          <button
+            onClick={initializeRegistrations}
+            disabled={isInitializing}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isInitializing ? 'Initializing...' : t.tracker.initializeRegistrations}
+          </button>
+        </div>
       </div>
     );
   }
