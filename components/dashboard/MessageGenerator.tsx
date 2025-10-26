@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Guild } from '@/lib/db';
+import { Guild, MessageTemplate } from '@/lib/db';
 import { generateDiscordMessage, generateCustomMessage, getNextMonday, formatDate } from '@/lib/utils';
 import { useLanguage } from '@/components/LanguageProvider';
 import GuildSelector from '@/components/GuildSelector';
 import MessageTemplateEditor from '@/components/MessageTemplateEditor';
-import { Copy, Download, MessageSquare, Calendar, Edit3 } from 'lucide-react';
+import { Copy, Download, MessageSquare, Calendar, Edit3, Save, Loader2 } from 'lucide-react';
 
 interface MessageGeneratorProps {
   guilds: Guild[];
@@ -33,6 +33,10 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
   const [messageTemplate, setMessageTemplate] = useState(DEFAULT_TEMPLATE);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [bossDate, setBossDate] = useState<string>(() => {
     // Initialize with next Monday
     return getNextMonday();
@@ -40,12 +44,36 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
 
   // No auto-selection - let user choose which guilds to select
 
-  // Load saved template from localStorage
+  // Load templates from database
   useEffect(() => {
-    const savedTemplate = localStorage.getItem('bdo_message_template');
-    if (savedTemplate) {
-      setMessageTemplate(savedTemplate);
-    }
+    const loadTemplates = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/message-templates');
+        if (response.ok) {
+          const templatesData = await response.json();
+          setTemplates(templatesData);
+          
+          // Find default template or use first template
+          const defaultTemplate = templatesData.find((t: MessageTemplate) => t.is_default);
+          if (defaultTemplate) {
+            setMessageTemplate(defaultTemplate.content);
+            setCurrentTemplateId(defaultTemplate.id);
+          } else if (templatesData.length > 0) {
+            setMessageTemplate(templatesData[0].content);
+            setCurrentTemplateId(templatesData[0].id);
+          }
+        } else {
+          console.error('Failed to load templates');
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTemplates();
   }, []);
 
   const selectedGuilds = guilds.filter(guild => selectedGuildIds.includes(guild.id));
@@ -95,15 +123,89 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
     URL.revokeObjectURL(url);
   };
 
-  const handleSaveTemplate = (newTemplate: string) => {
-    setMessageTemplate(newTemplate);
-    localStorage.setItem('bdo_message_template', newTemplate);
-    setShowTemplateEditor(false);
+  const handleSaveTemplate = async (newTemplate: string, templateName?: string) => {
+    try {
+      setIsSaving(true);
+      
+      if (currentTemplateId) {
+        // Update existing template
+        const response = await fetch('/api/message-templates', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentTemplateId,
+            content: newTemplate,
+            name: templateName || 'Custom Template'
+          })
+        });
+        
+        if (response.ok) {
+          const updatedTemplate = await response.json();
+          setTemplates(prev => prev.map(t => t.id === currentTemplateId ? updatedTemplate : t));
+        }
+      } else {
+        // Create new template
+        const response = await fetch('/api/message-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: templateName || 'Custom Template',
+            content: newTemplate,
+            is_default: templates.length === 0 // Set as default if it's the first template
+          })
+        });
+        
+        if (response.ok) {
+          const newTemplate = await response.json();
+          setTemplates(prev => [...prev, newTemplate]);
+          setCurrentTemplateId(newTemplate.id);
+        }
+      }
+      
+      setMessageTemplate(newTemplate);
+      setShowTemplateEditor(false);
+    } catch (error) {
+      console.error('Failed to save template:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleResetTemplate = () => {
     setMessageTemplate(DEFAULT_TEMPLATE);
-    localStorage.setItem('bdo_message_template', DEFAULT_TEMPLATE);
+    setCurrentTemplateId(null);
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setMessageTemplate(template.content);
+      setCurrentTemplateId(templateId);
+    }
+  };
+
+  const handleSetAsDefault = async (templateId: string) => {
+    try {
+      const response = await fetch('/api/message-templates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: templateId,
+          set_as_default: true
+        })
+      });
+      
+      if (response.ok) {
+        // Reload templates to get updated default status
+        const templatesResponse = await fetch('/api/message-templates');
+        if (templatesResponse.ok) {
+          const updatedTemplates = await templatesResponse.json();
+          setTemplates(updatedTemplates);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to set default template:', error);
+    }
   };
 
   if (guilds.length === 0) {
@@ -131,9 +233,10 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
           <button
             onClick={() => setShowTemplateEditor(true)}
             className="flex items-center gap-2 px-3 py-1 text-sm bg-muted text-muted-foreground rounded-md hover:bg-accent transition-colors"
+            disabled={isSaving}
           >
-            <Edit3 className="h-4 w-4" />
-            {t.message.editTemplate}
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit3 className="h-4 w-4" />}
+            {isSaving ? 'Saving...' : t.message.editTemplate}
           </button>
           <div className="flex items-center gap-2 text-sm">
             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -156,6 +259,37 @@ export default function MessageGenerator({ guilds }: MessageGeneratorProps) {
           </div>
         </div>
       </div>
+
+      {/* Template Selector */}
+      {templates.length > 0 && (
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Select Template
+          </label>
+          <div className="flex items-center gap-2">
+            <select
+              value={currentTemplateId || ''}
+              onChange={(e) => handleTemplateSelect(e.target.value)}
+              className="flex-1 px-3 py-2 border border-border rounded text-foreground bg-background focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name} {template.is_default ? '(Default)' : ''}
+                </option>
+              ))}
+            </select>
+            {currentTemplateId && (
+              <button
+                onClick={() => handleSetAsDefault(currentTemplateId)}
+                className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                title="Set as default template"
+              >
+                <Save className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mb-4">
         <label className="block text-sm font-medium text-foreground mb-2">

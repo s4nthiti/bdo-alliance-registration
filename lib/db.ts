@@ -37,6 +37,15 @@ export interface Mercenary {
   registered_at: string;
 }
 
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  content: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Initialize database tables
 export async function initDatabase() {
   try {
@@ -89,6 +98,18 @@ export async function initDatabase() {
         registration_id UUID REFERENCES registrations(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
         registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `;
+
+    // Create message_templates table
+    await sql`
+      CREATE TABLE IF NOT EXISTS message_templates (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        is_default BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
     `;
 
@@ -281,4 +302,62 @@ export async function getMercenariesByDate(bossDate: string): Promise<(Mercenary
     ORDER BY g.name ASC, m.registered_at ASC
   `;
   return rows;
+}
+
+// Message Template operations
+export async function getAllMessageTemplates(): Promise<MessageTemplate[]> {
+  const { rows } = await sql<MessageTemplate>`
+    SELECT * FROM message_templates 
+    ORDER BY is_default DESC, name ASC
+  `;
+  return rows;
+}
+
+export async function getMessageTemplateById(id: string): Promise<MessageTemplate | null> {
+  const { rows } = await sql<MessageTemplate>`
+    SELECT * FROM message_templates WHERE id = ${id}
+  `;
+  return rows[0] || null;
+}
+
+export async function getDefaultMessageTemplate(): Promise<MessageTemplate | null> {
+  const { rows } = await sql<MessageTemplate>`
+    SELECT * FROM message_templates WHERE is_default = TRUE LIMIT 1
+  `;
+  return rows[0] || null;
+}
+
+export async function createMessageTemplate(template: Omit<MessageTemplate, 'id' | 'created_at' | 'updated_at'>): Promise<MessageTemplate> {
+  const { rows } = await sql<MessageTemplate>`
+    INSERT INTO message_templates (name, content, is_default)
+    VALUES (${template.name}, ${template.content}, ${template.is_default})
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function updateMessageTemplate(id: string, updates: Partial<Omit<MessageTemplate, 'id' | 'created_at' | 'updated_at'>>): Promise<MessageTemplate> {
+  const { rows } = await sql<MessageTemplate>`
+    UPDATE message_templates 
+    SET 
+      name = COALESCE(${updates.name}, name),
+      content = COALESCE(${updates.content}, content),
+      is_default = COALESCE(${updates.is_default}, is_default),
+      updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function deleteMessageTemplate(id: string): Promise<void> {
+  await sql`DELETE FROM message_templates WHERE id = ${id}`;
+}
+
+export async function setDefaultMessageTemplate(id: string): Promise<void> {
+  // First, unset all defaults
+  await sql`UPDATE message_templates SET is_default = FALSE`;
+  
+  // Then set the specified template as default
+  await sql`UPDATE message_templates SET is_default = TRUE WHERE id = ${id}`;
 }

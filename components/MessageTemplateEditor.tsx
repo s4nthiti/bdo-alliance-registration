@@ -6,7 +6,7 @@ import { X, Save, RotateCcw, HelpCircle, Code, Undo2, Redo2 } from 'lucide-react
 
 interface MessageTemplateEditorProps {
   template: string;
-  onSave: (template: string) => void;
+  onSave: (template: string, templateName?: string) => void;
   onCancel: () => void;
   onReset: () => void;
 }
@@ -34,13 +34,14 @@ export default function MessageTemplateEditor({
 }: MessageTemplateEditorProps) {
   const { t } = useLanguage();
   const [currentTemplate, setCurrentTemplate] = useState(template);
+  const [templateName, setTemplateName] = useState('Custom Template');
   const [showHelp, setShowHelp] = useState(false);
   const [originalTemplate] = useState(template); // Store original template for undo
   const [history, setHistory] = useState<string[]>([template]); // Track edit history
   const [historyIndex, setHistoryIndex] = useState(0); // Current position in history
 
   const handleSave = () => {
-    onSave(currentTemplate);
+    onSave(currentTemplate, templateName);
   };
 
   const handleReset = () => {
@@ -115,6 +116,20 @@ export default function MessageTemplateEditor({
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Template Name */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Template Name
+            </label>
+            <input
+              type="text"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground placeholder-muted-foreground"
+              placeholder="Enter template name..."
+            />
+          </div>
+
           {/* Template Variables Help */}
           <div className="bg-muted border border-border rounded-lg p-4">
             <div className="flex items-center gap-2 mb-3">
