@@ -1,192 +1,26 @@
 'use client';
 
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Guild, Registration, Mercenary } from '@/lib/db';
 import { getNextMonday, formatDate } from '@/lib/utils';
 import { useLanguage } from '@/components/LanguageProvider';
 import GuildSelector from '@/components/GuildSelector';
 import { useQuotaUpdates } from '@/lib/useQuotaUpdates';
 import { useSSE } from '@/lib/useSSE';
-import { Users, Plus, Minus, Save, Calendar, Loader2, Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight, User, X, Clock, BarChart3 } from 'lucide-react';
+import AddMercenaryModal from '@/components/dashboard/AddMercenaryModal';
+import MercenariesTable from '@/components/dashboard/MercenariesTable';
+import { Users, Plus, Calendar, Loader2, Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
 
 interface QuotaTrackerProps {
   guilds: Guild[];
 }
 
-// Memoized component for individual quota items
-const QuotaItem = memo(({ 
-  registration, 
-  guild, 
-  isSaving, 
-  onAdjustQuotas,
-  mercenaries,
-  onAddMercenary,
-  onRemoveMercenary
-}: {
-  registration: Registration & { guild_name: string };
-  guild: Guild;
-  isSaving: boolean;
-  onAdjustQuotas: (id: string, delta: number) => void;
-  mercenaries: (Mercenary & { guild_name: string; registration_code: string })[];
-  onAddMercenary: (registrationId: string, name: string) => void;
-  onRemoveMercenary: (mercenaryId: string) => void;
-}) => {
-  const isAtMax = registration.used_quotas >= guild.mercenary_quotas;
-  const { t } = useLanguage();
-  const [mercenaryName, setMercenaryName] = useState('');
-  const [isAddingMercenary, setIsAddingMercenary] = useState(false);
-
-  const guildMercenaries = mercenaries.filter(m => m.registration_id === registration.id);
-
-  const handleAddMercenary = async () => {
-    if (!mercenaryName.trim()) return;
-    
-    try {
-      setIsAddingMercenary(true);
-      await onAddMercenary(registration.id, mercenaryName.trim());
-      setMercenaryName('');
-    } catch (error) {
-      console.error('Failed to add mercenary:', error);
-    } finally {
-      setIsAddingMercenary(false);
-    }
-  };
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">{registration.guild_name}</h3>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            <code className="bg-muted px-3 py-1 rounded-lg text-xs font-mono break-all">
-              {registration.registration_code}
-            </code>
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-foreground">
-            {registration.used_quotas} / {guild.mercenary_quotas}
-          </div>
-          <div className="text-sm text-muted-foreground">quotas</div>
-        </div>
-      </div>
-
-      {/* Quota Display */}
-      <div className="bg-muted/50 rounded-lg p-4 mb-4">
-        <div className="text-center">
-          <div className="text-4xl font-bold text-foreground mb-1">
-            {registration.used_quotas}
-          </div>
-          <div className="text-sm text-muted-foreground">Current Quota</div>
-        </div>
-        </div>
-
-      {/* Mercenary Name Input */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-lg p-4 border border-blue-200/50 dark:border-blue-800/50">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-            <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          </div>
-          <span className="font-semibold text-foreground">Add Mercenary</span>
-        </div>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={mercenaryName}
-            onChange={(e) => setMercenaryName(e.target.value)}
-            placeholder="Enter mercenary name..."
-            className="flex-1 px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            onKeyPress={(e) => e.key === 'Enter' && handleAddMercenary()}
-          />
-        <button
-            onClick={handleAddMercenary}
-            disabled={!mercenaryName.trim() || isAddingMercenary || isAtMax}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors shadow-sm"
-          >
-            {isAddingMercenary ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-          <Plus className="h-4 w-4" />
-            )}
-            Add
-        </button>
-        </div>
-      </div>
-
-      {/* Mercenaries List */}
-      {guildMercenaries.length > 0 && (
-        <div className="mt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
-            </div>
-            <span className="font-semibold text-foreground">Registered Mercenaries</span>
-            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">
-              {guildMercenaries.length}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {guildMercenaries.map((mercenary) => (
-              <div key={mercenary.id} className="flex items-center justify-between p-3 bg-background rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <User className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <span className="font-medium text-foreground">{mercenary.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {new Date(mercenary.registered_at).toLocaleTimeString()}
-                  </span>
-                  <button
-                    onClick={() => onRemoveMercenary(mercenary.id)}
-                    className="p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                    title="Remove mercenary"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {isSaving && (
-        <div className="mt-4 flex items-center justify-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-          <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Saving changes...</span>
-        </div>
-      )}
-
-      {isAtMax && (
-        <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="p-1 bg-yellow-100 dark:bg-yellow-900/30 rounded">
-              <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-            {t.tracker.quotaLimitMessage}
-          </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
-
-QuotaItem.displayName = 'QuotaItem';
 
 export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   const { t } = useLanguage();
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [selectedGuildIds, setSelectedGuildIds] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   // Helper function to get Thai date
   const getThaiDate = () => {
@@ -430,9 +264,15 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
     }
   }, [registrations, guilds, updateQuotas]);
 
-  const addMercenary = useCallback(async (registrationId: string, name: string) => {
+  const addMercenary = useCallback(async (guildId: string, name: string) => {
     try {
-      const response = await fetch(`/api/mercenaries/${registrationId}`, {
+      // Find the registration for this guild and date
+      const registration = registrations.find(r => r.guild_id === guildId);
+      if (!registration) {
+        throw new Error('No registration found for this guild');
+      }
+
+      const response = await fetch(`/api/mercenaries/${registration.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
@@ -447,12 +287,11 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
       setMercenaries(prev => [...prev, newMercenary]);
       
       // Calculate the new quota count based on actual mercenary count
-      const guildMercenaries = [...mercenaries.filter(m => m.registration_id === registrationId), newMercenary];
+      const guildMercenaries = [...mercenaries.filter(m => m.registration_id === registration.id), newMercenary];
       const newQuotaCount = guildMercenaries.length;
       
       // Update quota to match the actual mercenary count
-      // This is a simple update without optimistic locking since quota should match mercenary count
-      await updateQuotas(registrationId, newQuotaCount);
+      await updateQuotas(registration.id, newQuotaCount);
       
       // Broadcast SSE event for real-time updates
       try {
@@ -461,7 +300,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'mercenary_added',
-            data: { registrationId, mercenaryName: name }
+            data: { registrationId: registration.id, mercenaryName: name }
           })
         });
       } catch (error) {
@@ -477,7 +316,7 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
       // Refresh data to ensure consistency
       await refreshQuotaData();
     }
-  }, [mercenaries, updateQuotas, refreshQuotaData]);
+  }, [registrations, mercenaries, updateQuotas, refreshQuotaData]);
 
   const removeMercenary = useCallback(async (mercenaryId: string) => {
     // Prevent rapid-fire operations
@@ -546,59 +385,24 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
-              <p className="text-sm text-muted-foreground">Track mercenary registrations in real-time</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
-        <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-lg font-medium text-foreground">{t.common.loading}</p>
-            <p className="mt-2 text-sm text-muted-foreground">Loading quota data...</p>
-          </div>
-        </div>
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-foreground">{t.common.loading}</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
-              <p className="text-sm text-muted-foreground">Track mercenary registrations in real-time</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-card border border-red-200 dark:border-red-800 rounded-xl p-8 shadow-sm">
-        <div className="text-center">
-            <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <WifiOff className="h-8 w-8 text-red-600 dark:text-red-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-red-900 dark:text-red-100 mb-2">Connection Error</h3>
-            <p className="text-sm text-red-700 dark:text-red-300 mb-6">{error}</p>
-          <button
-            onClick={reconnect}
-              className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium flex items-center gap-2 mx-auto transition-colors shadow-sm"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Reconnect
-          </button>
-          </div>
-        </div>
+      <div className="text-center py-8">
+        <div className="text-red-600 mb-4">Connection Error</div>
+        <p className="text-sm text-muted-foreground mb-4">{error}</p>
+        <button
+          onClick={reconnect}
+          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        >
+          Reconnect
+        </button>
       </div>
     );
   }
@@ -614,83 +418,21 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   // Always show the guild selector, don't return early
 
   if (filteredRegistrations.length === 0) {
-  return (
-    <div className="bg-card border border-border rounded-lg p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-green-600" />
-          <h2 className="text-lg font-semibold text-foreground">{t.tracker.title}</h2>
-          <div className="flex items-center gap-1 ml-2">
-            {isConnected ? (
-              <div title="Real-time updates active">
-                <Wifi className="h-4 w-4 text-green-500" />
-              </div>
-            ) : (
-              <div title="Real-time updates disconnected">
-                <WifiOff className="h-4 w-4 text-red-500" />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Date Picker Section */}
-      <div className="mb-6 p-4 bg-muted rounded-lg">
-        <div className="flex items-center justify-between mb-3">
-          <label className="block text-sm font-medium text-foreground">
-            {t.tracker.bossDate}
-          </label>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigateDate('prev')}
-            className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
-            title="Previous day"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          
-          <div className="flex-1">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          
-          <button
-            onClick={() => navigateDate('next')}
-            className="p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
-            title="Next day"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        
-        <div className="mt-2 text-sm text-muted-foreground text-center">
-          {formatDate(selectedDate)}
-        </div>
-      </div>
-
-        <div className="text-center">
-          <Users className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">
-            {t.tracker.noRegistrations}
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {t.tracker.noRegistrationsSubtitle}
-          </p>
-          <button
-            onClick={initializeRegistrations}
-            disabled={isInitializing}
-            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isInitializing && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isInitializing ? 'Initializing...' : t.tracker.initializeRegistrations}
-          </button>
-        </div>
+    return (
+      <div className="text-center py-8">
+        <h3 className="text-lg font-medium text-foreground mb-2">
+          {t.tracker.noRegistrations}
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          {t.tracker.noRegistrationsSubtitle}
+        </p>
+        <button
+          onClick={initializeRegistrations}
+          disabled={isInitializing}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isInitializing ? 'Initializing...' : t.tracker.initializeRegistrations}
+        </button>
       </div>
     );
   }
@@ -701,115 +443,62 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-800/50">
+      <div className="border-b border-border pb-4 mb-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">{t.tracker.title}</h2>
-              <p className="text-sm text-muted-foreground">Track mercenary registrations in real-time</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Current Time Display */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg border border-border/50">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-mono text-foreground">
-                {currentTime}
-              </span>
-            </div>
-            
-            {/* Connection Status */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg">
-              {isConnected && sseConnected ? (
-                <>
-                  <Wifi className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">Live (SSE)</span>
-                </>
-              ) : isConnected ? (
-                <>
-                  <Wifi className="h-4 w-4 text-yellow-500" />
-                  <span className="text-sm text-yellow-600 dark:text-yellow-400 font-medium">Polling</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-4 w-4 text-red-500" />
-                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">Offline</span>
-                </>
-              )}
-            </div>
+          <h2 className="text-2xl font-semibold text-foreground">{t.tracker.title}</h2>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{currentTime}</span>
+            {isConnected ? (
+              <span className="text-green-600">●</span>
+            ) : (
+              <span className="text-red-600">●</span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Date Picker Section */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-blue-600" />
-            <label className="text-lg font-semibold text-foreground">
-              {t.tracker.bossDate}
-            </label>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div>
           <button
             onClick={() => navigateDate('prev')}
-            className="p-3 bg-background border border-border rounded-lg hover:bg-muted transition-colors shadow-sm"
+            className="p-2 hover:bg-muted rounded"
             title="Previous day"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
           
-          <div className="flex-1">
-            <div className="relative">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-medium opacity-0 absolute inset-0 z-10"
-              />
-              <div className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground text-center font-medium">
-                {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('th-TH', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric'
-                }) : 'DD/MM/YYYY'}
-              </div>
-            </div>
-          </div>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-2 border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
           
           <button
             onClick={() => navigateDate('next')}
-            className="p-3 bg-background border border-border rounded-lg hover:bg-muted transition-colors shadow-sm"
+            className="p-2 hover:bg-muted rounded"
             title="Next day"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-4 w-4" />
           </button>
-        </div>
-        
-        <div className="mt-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">
-              {formatDate(selectedDate)}
-            </span>
-          </div>
           
+          <span className="text-sm text-muted-foreground ml-2">
+            {formatDate(selectedDate)}
+          </span>
         </div>
+
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          ลงทะเบียนทหาร
+        </button>
       </div>
 
       {/* Guild Selector Section */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className="h-5 w-5 text-purple-600" />
-          <label className="text-lg font-semibold text-foreground">
-          {t.tracker.selectGuilds}
-        </label>
-        </div>
+      <div className="mb-6">
         <GuildSelector
           guilds={guilds}
           selectedGuildIds={selectedGuildIds}
@@ -820,83 +509,93 @@ export default function QuotaTracker({ guilds }: QuotaTrackerProps) {
           placeholder={t.tracker.selectGuilds}
         />
         {selectedGuildIds.length > 0 && (
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>{selectedGuildIds.length}</strong> guild{selectedGuildIds.length !== 1 ? 's' : ''} selected for tracking
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            {selectedGuildIds.length} guild{selectedGuildIds.length !== 1 ? 's' : ''} selected
+          </p>
         )}
       </div>
 
       {selectedGuildIds.length === 0 ? (
         <div className="text-center py-8">
-          <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-2 text-sm font-medium text-foreground">{t.tracker.noGuildsSelected}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h3 className="text-sm font-medium text-foreground">{t.tracker.noGuildsSelected}</h3>
+          <p className="text-sm text-muted-foreground">
             Select guilds above to track their quota usage
           </p>
         </div>
       ) : (
         <>
-          {/* Quota Summary */}
-          <div className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="h-5 w-5 text-slate-600" />
-              <h3 className="text-lg font-semibold text-foreground">Quota Summary</h3>
+          {/* Overall Quota Summary */}
+          <div className="grid grid-cols-3 gap-4 mb-6 p-4 border border-border rounded">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">{totalUsedQuotas}</div>
+              <div className="text-xs text-muted-foreground">{t.tracker.usedQuotas}</div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">{totalUsedQuotas}</div>
-                <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">{t.tracker.usedQuotas}</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">{totalAvailableQuotas - totalUsedQuotas}</div>
-                <div className="text-sm text-green-700 dark:text-green-300 font-medium">{t.tracker.availableQuotas}</div>
-              </div>
-              <div className="text-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                <div className="text-3xl font-bold text-slate-600 dark:text-slate-400 mb-1">{totalAvailableQuotas}</div>
-                <div className="text-sm text-slate-700 dark:text-slate-300 font-medium">{t.tracker.totalQuotas}</div>
-              </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">{totalAvailableQuotas - totalUsedQuotas}</div>
+              <div className="text-xs text-muted-foreground">{t.tracker.availableQuotas}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">{totalAvailableQuotas}</div>
+              <div className="text-xs text-muted-foreground">{t.tracker.totalQuotas}</div>
             </div>
           </div>
 
-          <div className="space-y-4">
-        {filteredRegistrations.map((registration) => {
-          const guild = guilds.find(g => g.id === registration.guild_id);
-          if (!guild) return null;
-
-          return (
-            <QuotaItem
-              key={registration.id}
-              registration={registration}
-              guild={guild}
-              isSaving={saving[registration.id]}
-              onAdjustQuotas={adjustQuotas}
-              mercenaries={mercenaries}
-              onAddMercenary={addMercenary}
-              onRemoveMercenary={removeMercenary}
-            />
-          );
-        })}
-      </div>
-
-          <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <div className="flex items-start gap-3">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg mt-0.5">
-                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">
-                  {t.tracker.instructions}
-                </p>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  {t.tracker.instructionsMessage}
-                </p>
-              </div>
+          {/* Guild Quota Breakdown */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Quota by Guild</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredRegistrations.map((registration) => {
+                const guild = guilds.find(g => g.id === registration.guild_id);
+                if (!guild) return null;
+                
+                return (
+                  <div key={registration.id} className="border border-border rounded p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-foreground">{guild.name}</h4>
+                      <div className="text-sm text-muted-foreground">
+                        {registration.used_quotas} / {guild.mercenary_quotas}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono mb-2">
+                      {registration.registration_code}
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${guild.mercenary_quotas > 0 ? (registration.used_quotas / guild.mercenary_quotas) * 100 : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {guild.mercenary_quotas - registration.used_quotas} remaining
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {/* Mercenaries Table */}
+          <MercenariesTable
+            mercenaries={mercenaries}
+            guilds={guilds}
+            registrations={registrations}
+            onRemoveMercenary={removeMercenary}
+            isLoading={loading}
+          />
+
         </>
       )}
+
+      {/* Add Mercenary Modal */}
+      <AddMercenaryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        guilds={guilds}
+        registrations={registrations}
+        onAddMercenary={addMercenary}
+      />
     </div>
   );
 }
