@@ -60,7 +60,7 @@ export default function MercenariesTable({
           </thead>
           <tbody className="divide-y divide-border">
             {mercenaries.map((mercenary) => {
-              const registration = registrations.find(r => r.registration_id === mercenary.registration_id);
+              const registration = registrations.find(r => r.id === mercenary.registration_id);
               const guild = guilds.find(g => g.id === registration?.guild_id);
               
               return (
